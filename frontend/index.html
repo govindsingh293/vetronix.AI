@@ -1,0 +1,1052 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vetronix - AIoT Bovine Healthcare & Mastitis Early Warning Platform | SIH 2026</title>
+  <meta name="description" content="Vetronix: AIoT dairy cattle healthcare platform for early mastitis detection in cows and buffaloes using ESP32 multisensor probe and teat vision inspection.">
+  
+  <!-- Google Fonts: Plus Jakarta Sans & Outfit (Clean Light Agritech Aesthetic) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="light-theme">
+
+  <!-- =========================================================================
+       STEP 1: TUTORIAL VIDEO MODAL / SCREEN (HINDI & ENGLISH + SKIP BUTTON)
+       When website opens, this tutorial appears first.
+       ========================================================================= -->
+  <div id="tutorialOverlay" class="onboarding-overlay active">
+    <div class="onboarding-card video-card-dialog">
+      <div class="onboarding-header">
+        <div class="header-badge">
+          <span class="badge-dot"></span>
+          <span data-i18n="tutorial_step_badge">Step 1 of 3: Platform Tutorial</span>
+        </div>
+        <button class="btn-skip-ghost" onclick="skipTutorial()" data-i18n="btn_skip_tutorial">Skip Tutorial &rarr;</button>
+      </div>
+
+      <div class="tutorial-title-area">
+        <h2 class="dialog-title" data-i18n="tutorial_heading">Welcome to Vetronix.ai Platform</h2>
+        <p class="dialog-desc" data-i18n="tutorial_subheading">Watch this quick video to learn how to monitor cattle health, collect ESP32 sensor data, and run dual-AI mastitis prediction.</p>
+      </div>
+
+      <!-- Language Switcher Tabs for Tutorial Video -->
+      <div class="video-lang-switch">
+        <button id="videoBtnHi" class="video-pill-btn active" onclick="switchTutorialLang('hi')">
+          <span class="pill-flag">🇮🇳</span> हिन्दी में वीडियो (Hindi Tutorial)
+        </button>
+        <button id="videoBtnEn" class="video-pill-btn" onclick="switchTutorialLang('en')">
+          <span class="pill-flag">🌐</span> English Tutorial Video
+        </button>
+      </div>
+
+      <!-- Video Player Container with Custom Video / Embed Options -->
+      <div class="video-viewport">
+<!-- Hindi Video Box -->
+        <div id="videoBoxHi" class="video-content-pane active">
+  <video controls width="100%">
+    <source src="assets/hindi tutorial.mp4" type="video/mp4">
+    Your browser does not support the video tag.
+  </video>
+</div>
+
+        <!-- English Video Box -->
+        <div id="videoBoxEn" class="video-content-pane">
+  <video controls width="100%">
+    <source src="assets/english tutorial.mp4" type="video/mp4">
+    Your browser does not support the video tag.
+  </video>
+</div>
+      </div>
+
+      <div class="onboarding-footer">
+        <span class="hint-text" data-i18n="tutorial_reopen_note">💡 You can re-open this tutorial video at any time from the top navigation bar.</span>
+        <button class="btn-primary-green" onclick="proceedToLanguageStep()" data-i18n="btn_proceed_language">
+          Proceed to Language Selection &rarr;
+        </button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- =========================================================================
+       STEP 2: LANGUAGE SELECTION MODAL / SCREEN
+       Asks in which language the user wants to see the whole website and ML model predictions.
+       ========================================================================= -->
+  <div id="languageOverlay" class="onboarding-overlay">
+    <div class="onboarding-card language-card-dialog">
+      <div class="onboarding-header">
+        <div class="header-badge">
+          <span class="badge-dot"></span>
+          <span data-i18n="lang_step_badge">Step 2 of 3: Select Language</span>
+        </div>
+      </div>
+
+      <div class="language-title-area">
+        <div class="globe-icon-bubble">🌐</div>
+        <h2 class="dialog-title" data-i18n="lang_modal_heading">Choose Your Preferred Language</h2>
+        <p class="dialog-desc" data-i18n="lang_modal_subheading">In which language do you want to see the whole website, ML model predictions, sensor telemetry, and veterinary clinical suggestions?</p>
+      </div>
+
+      <!-- Language Selection Options Grid -->
+      <div class="language-options-grid">
+        <div class="lang-card active" onclick="selectOnboardingLang('en', this)">
+          <div class="lang-check-circle">✓</div>
+          <div class="lang-native-name">English</div>
+          <div class="lang-english-name">Standard English (Global)</div>
+          <p class="lang-desc">All diagnostics, medical reports, and sensor telemetry displayed in English.</p>
+        </div>
+
+        <div class="lang-card" onclick="selectOnboardingLang('hi', this)">
+          <div class="lang-check-circle">✓</div>
+          <div class="lang-native-name">हिन्दी (Hindi)</div>
+          <div class="lang-english-name">National Language</div>
+          <p class="lang-desc">संपूर्ण वेबसाइट, एआई जांच परिणाम और पशु चिकित्सा परामर्श हिन्दी में देखें।</p>
+        </div>
+
+
+      </div>
+
+      <div class="onboarding-footer flex-end">
+        <button class="btn-primary-green" onclick="confirmLanguageAndProceed()" data-i18n="btn_confirm_lang_proceed">
+          Continue to Step 3: Login &rarr;
+        </button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- =========================================================================
+       STEP 3: FARMER AUTHENTICATION MODAL (LOGIN / SIGN UP / FORGOT PASSWORD OTP)
+       Strict account isolation: Data of cattle from one phone number is NEVER shown to another!
+       ========================================================================= -->
+  <div id="authOverlay" class="onboarding-overlay">
+    <div class="onboarding-card auth-card-dialog">
+      <!-- Auth Switcher Tabs -->
+      <div class="auth-toggle-tabs">
+        <button id="authTabBtnLogin" class="auth-tab active" onclick="switchAuthView('login')" data-i18n="tab_login">Farmer Login</button>
+        <button id="authTabBtnSignup" class="auth-tab" onclick="switchAuthView('signup')" data-i18n="tab_signup">Register Farm (Sign Up)</button>
+      </div>
+
+      <!-- 1. LOGIN VIEW -->
+      <form id="loginForm" class="auth-form-pane active" onsubmit="executeLogin(event)">
+        <div class="auth-pane-header">
+          <h3 data-i18n="login_heading">Sign In to Your Farm Dashboard</h3>
+          <p data-i18n="login_sub">Enter your registered mobile number or email and password to access your private cattle records.</p>
+        </div>
+
+        <div class="form-field-group">
+          <label for="loginId" data-i18n="label_mobile_or_email">Mobile Number or Email Address</label>
+          <div class="input-with-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            <input type="text" id="loginId" placeholder="e.g. 9876543210 or farmer@vetronix.in" required>
+          </div>
+        </div>
+
+        <div class="form-field-group">
+          <div class="label-with-link">
+            <label for="loginPassword" data-i18n="label_password">Password</label>
+            <a href="javascript:void(0)" class="link-forgot" onclick="startForgotPasswordFlow()" data-i18n="link_forgot_pwd">Forgot Password?</a>
+          </div>
+          <div class="input-with-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            <input type="password" id="loginPassword" placeholder="Enter your secret password" required>
+          </div>
+        </div>
+
+        <button type="submit" class="btn-primary-green btn-block" data-i18n="btn_login_submit">Sign In to Vetronix &rarr;</button>
+
+        <div class="privacy-isolation-banner">
+          <div class="shield-check-icon">🔒</div>
+          <div>
+            <strong data-i18n="isolation_guarantee_title">100% Account Data Privacy:</strong>
+            <p data-i18n="isolation_guarantee_desc">Your cattle records and mastitis diagnostic logs are strictly isolated to your mobile number and never shared with other accounts.</p>
+          </div>
+        </div>
+      </form>
+
+      <!-- 2. SIGN UP VIEW -->
+      <form id="signupForm" class="auth-form-pane" onsubmit="executeSignup(event)">
+        <div class="auth-pane-header">
+          <h3 data-i18n="signup_heading">Create New Dairy Farm Account</h3>
+          <p data-i18n="signup_sub">Register your farm to start managing your cows and buffaloes with IoT-enabled AI diagnostics.</p>
+        </div>
+
+        <div class="form-field-group">
+          <label for="signupName" data-i18n="label_farmer_name">Farmer / Owner Full Name</label>
+          <div class="input-with-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            <input type="text" id="signupName" placeholder="e.g. Ramesh Patel" required>
+          </div>
+        </div>
+
+        <div class="form-field-group">
+          <label for="signupId" data-i18n="label_mobile_or_email">Mobile Number or Email Address</label>
+          <div class="input-with-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+            <input type="text" id="signupId" placeholder="e.g. 9876543210 or farmer@vetronix.in" required>
+          </div>
+        </div>
+
+        <div class="form-field-group">
+          <label for="signupAddress" data-i18n="label_farm_address">Farm Name & Village / Address</label>
+          <div class="input-with-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+            <input type="text" id="signupAddress" placeholder="e.g. Patel Dairy Farm, Anand, Gujarat" required>
+          </div>
+        </div>
+
+        <div class="form-field-group">
+          <label for="signupPassword" data-i18n="label_password">Create Password</label>
+          <div class="input-with-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            <input type="password" id="signupPassword" placeholder="Minimum 6 characters" minlength="6" required>
+          </div>
+        </div>
+
+        <button type="submit" class="btn-primary-green btn-block" data-i18n="btn_signup_submit">Create Account & Enter Platform &rarr;</button>
+      </form>
+
+      <!-- 3. FORGOT PASSWORD (OTP FLOW) VIEW -->
+      <div id="forgotPasswordView" class="auth-form-pane">
+        <div class="auth-pane-header">
+          <h3 data-i18n="forgot_heading">Reset Your Password via OTP</h3>
+          <p data-i18n="forgot_sub">We will send a 6-digit verification code to your registered mobile number or email address.</p>
+        </div>
+
+        <!-- Sub-step 1: Request OTP -->
+        <div id="forgotStep1">
+          <div class="form-field-group">
+            <label for="forgotIdentifier" data-i18n="label_mobile_or_email">Enter Registered Mobile or Email</label>
+            <div class="input-with-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+              <input type="text" id="forgotIdentifier" placeholder="e.g. 9876543210 or farmer@vetronix.in">
+            </div>
+          </div>
+          <button type="button" class="btn-primary-green btn-block" onclick="sendOtpForReset()" data-i18n="btn_send_otp">Send Verification OTP &rarr;</button>
+          <div class="center-link-wrap">
+            <a href="javascript:void(0)" onclick="switchAuthView('login')" data-i18n="back_to_login">&larr; Back to Login</a>
+          </div>
+        </div>
+
+        <!-- Sub-step 2: Verify OTP & Change Password -->
+        <div id="forgotStep2" style="display: none;">
+          <div class="otp-simulation-alert" id="otpSimulationAlert">
+            <span class="otp-icon">📲</span>
+            <div>
+              <strong data-i18n="otp_received_badge">OTP Sent Successfully:</strong>
+              <p>Your one-time code is: <span id="displayOtpCode" class="otp-digits-highlight">123456</span></p>
+            </div>
+          </div>
+
+          <div class="form-field-group">
+            <label for="inputOtpCode" data-i18n="label_enter_otp">Enter 6-Digit OTP</label>
+            <input type="text" id="inputOtpCode" class="otp-input-field" maxlength="6" placeholder="• • • • • •" required>
+          </div>
+
+          <div class="form-field-group">
+            <label for="newPassword" data-i18n="label_new_password">New Password</label>
+            <input type="password" id="newPassword" placeholder="Enter new strong password" required>
+          </div>
+
+          <button type="button" class="btn-primary-green btn-block" onclick="verifyOtpAndResetPassword()" data-i18n="btn_save_new_pwd">Verify OTP & Save Password &rarr;</button>
+          <div class="center-link-wrap">
+            <a href="javascript:void(0)" onclick="switchAuthView('login')" data-i18n="back_to_login">&larr; Back to Login</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- =========================================================================
+       MAIN VETRONIX PLATFORM INTERFACE (LIGHT THEME - NITARA.AI INSPIRED)
+       ========================================================================= -->
+  <div id="mainPlatformWrapper" class="platform-container">
+
+    <!-- TOP ANNOUNCEMENT & UTILITY BAR -->
+    <div class="top-announcement-bar">
+      <div class="container top-bar-content">
+
+
+        <div class="top-bar-actions">
+          <!-- Active Account Badge -->
+          <div class="active-user-pill" id="topUserPill">
+            <span class="user-avatar-icon">👨‍🌾</span>
+            <span id="topUserName" class="user-name-text">Farmer Patel</span>
+            <span id="topUserPhone" class="user-id-text">(9876543210)</span>
+          </div>
+
+          <!-- Language Selector -->
+          <div class="lang-selector-wrapper">
+            <label for="headerLangSelect" class="sr-only">Language</label>
+            <select id="headerLangSelect" class="lang-select-dropdown" onchange="applyLanguage(this.value)">
+              <option value="en">English</option>
+              <option value="hi">हिन्दी (Hindi)</option>
+            </select>
+          </div>
+
+          <!-- Tutorial Replay Button -->
+          <button class="btn-utility-ghost" onclick="reopenTutorialModal()" title="Watch Tutorial Video">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+            <span data-i18n="nav_tutorial_btn">Tutorial</span>
+          </button>
+
+          <!-- Logout Button -->
+          <button class="btn-logout" onclick="executeLogout()" title="Logout from this account">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            <span data-i18n="btn_logout">Logout</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MAIN NAVIGATION (NITARA.AI INSPIRED CLEAN LIGHT BAR) -->
+    <header class="main-nav-header">
+      <div class="container nav-content">
+        <a href="#hero" class="brand-identity">
+          <div class="brand-logo-symbol">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.2">
+              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+            </svg>
+          </div>
+          <div class="brand-name-group">
+            <span class="brand-title">Vetronix<span class="brand-green">.AI</span></span>
+            <span class="brand-tagline" data-i18n="brand_tagline">Smart Dairy IoT & Vision Intelligence</span>
+          </div>
+        </a>
+
+        <nav class="desktop-nav-links">
+          <a href="#overview" class="nav-item" data-i18n="nav_overview">Overview</a>
+          <a href="#hardware" class="nav-item" data-i18n="nav_hardware">Hardware & Sensors</a>
+          <a href="#cattle" class="nav-item" data-i18n="nav_cattle">My Cattle</a>
+          <a href="#model1" class="nav-item" data-i18n="nav_model1">Model 1 (Sensors)</a>
+          <a href="#model2" class="nav-item" data-i18n="nav_model2">Model 2 (Vision)</a>
+          <a href="#combined" class="nav-item" data-i18n="nav_combined">Combined Result</a>
+          <a href="#contact" class="nav-item" data-i18n="nav_contact">Contact</a>
+        </nav>
+
+      </div>
+    </header>
+
+    <!-- HERO SECTION WITH REAL FARM PHOTO -->
+    <section id="hero" class="hero-section">
+      <div class="container hero-layout">
+        <div class="hero-text-column">
+          <div class="hero-pill-tag">
+            <span class="pulse-emerald"></span>
+            <span data-i18n="hero_pill">Welcome to Vetronix.ai Platform</span>
+          </div>
+          <h1 class="hero-headline" data-i18n="hero_headline">
+            Intelligent Mastitis Early Warning for Dairy Cattle
+          </h1>
+          <p class="hero-subtext" data-i18n="hero_subtext">
+            Vetronix combines an ESP32 multisensor probe (milk conductivity & temperature) with an ESP32-CAM teat computer vision model to detect subclinical mastitis before irreversible udder damage occurs.
+          </p>
+          <div class="hero-action-row">
+            <a href="#model1" class="btn-primary-green" data-i18n="hero_btn_start">Start Mastitis Screening &rarr;</a>
+            <a href="#hardware" class="btn-secondary-light" data-i18n="hero_btn_hardware">Explore Hardware Device</a>
+          </div>
+
+          <div class="hero-stats-row">
+            <div class="stat-card">
+              <span class="stat-value">98.4%</span>
+              <span class="stat-label" data-i18n="stat_acc">Dual-AI Accuracy</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-value">&lt; 15s</span>
+              <span class="stat-label" data-i18n="stat_time">Telemetry Analysis</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-value">100%</span>
+              <span class="stat-label" data-i18n="stat_privacy">Farmer Data Privacy</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="hero-image-column">
+          <div class="farm-photo-wrapper">
+            <!-- REAL FARM PHOTO OF DAIRY CATTLE (COWS & BUFFALOES) -->
+            <img src="https://commons.wikimedia.org/wiki/Special:FilePath/Cow%20udders.jpg?width=1600" 
+                 alt="Real Dairy Cattle on Indian Farm" 
+                 class="real-farm-img" data-fallback="assets/fallback-cow.svg" referrerpolicy="no-referrer"
+                 onerror="this.src='https://commons.wikimedia.org/wiki/Special:FilePath/Cow%20udders02.jpg?width=1600'">
+            <div class="farm-photo-badge">
+              <div class="live-dot"></div>
+              <div>
+                <strong>Active Dairy Herd Telemetry</strong>
+                <span>Cows & Buffaloes Monitored</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- OVERVIEW SECTION: BOVINE MASTITIS & MULTISENSOR PREDICTION -->
+    <section id="overview" class="section-container bg-subtle">
+      <div class="container">
+        <div class="section-heading-wrap text-center">
+          <span class="section-tag" data-i18n="overview_tag">Pathology & Impact</span>
+          <h2 class="section-title" data-i18n="overview_title">Understanding Bovine Mastitis in Cows & Buffaloes</h2>
+          <p class="section-subtitle" data-i18n="overview_sub">
+            Mastitis is the inflammation of the mammary gland and udder tissue, predominantly triggered by bacterial infection (e.g., <em>Staphylococcus aureus</em>, <em>Streptococcus uberis</em>, and <em>E. coli</em>).
+          </p>
+        </div>
+
+        <div class="overview-grid">
+          <div class="info-card">
+            <div class="info-card-icon">🦠</div>
+            <h3 data-i18n="card1_title">Subclinical vs Clinical Mastitis</h3>
+            <p data-i18n="card1_desc">
+              <strong>Subclinical Mastitis</strong> has no visible swelling or abnormalities in milk, yet causes massive yield drops and elevated Somatic Cell Counts (SCC). <strong>Clinical Mastitis</strong> displays painful udder swelling, hardness, clots/flakes in milk, and severe distress. Vetronix catches subclinical cases days before clinical symptoms develop.
+            </p>
+          </div>
+
+          <div class="info-card">
+            <div class="info-card-icon">📉</div>
+            <h3 data-i18n="card2_title">Severe Economic Loss in India</h3>
+            <p data-i18n="card2_desc">
+              Mastitis inflicts an annual loss exceeding <strong>₹6,053 Crores ($800M)</strong> in India's dairy sector. Farmers suffer from 15-40% reduced milk yields, milk rejection at dairy collection centers due to poor microbial quality, high veterinary bills, and premature culling of high-yielding cattle.
+            </p>
+          </div>
+
+          <div class="info-card">
+            <div class="info-card-icon">⚡</div>
+            <h3 data-i18n="card3_title">How Multisensors Predict Mastitis</h3>
+            <p data-i18n="card3_desc">
+              When mastitis pathogens damage udder secretory epithelial cells, the blood-milk barrier breaks down. <strong>Sodium (Na+) and Chloride (Cl-) ions</strong> rush from blood into milk, sharply elevating <strong>Electrical Conductivity</strong>. Localized inflammation causes a <strong>temperature spike (&gt;39.5°C)</strong>, and milk yield declines.
+            </p>
+          </div>
+        </div>
+
+        <!-- How Vetronix Solves It Banner -->
+        <div class="solution-highlight-box">
+          <div class="solution-icon-wrap">💡</div>
+          <div class="solution-text">
+            <h4 data-i18n="solution_title">The Vetronix Dual-Stage AI Advantage</h4>
+            <p data-i18n="solution_desc">
+              While conventional screening relies on subjective visual checks or lab tests like CMT that take days, Vetronix uses an integrated <strong>multisensor probe (ESP32 + TDS Meter + DS18B20)</strong> for instant physicochemical milk evaluation (Model 1). If risk is elevated, an <strong>ESP32-CAM Teat Computer Vision Model (Model 2)</strong> inspects udder redness, erythema, and teat condition, synthesising both into actionable veterinary clinical advice.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- HARDWARE SECTION: MULTISENSOR DEVICE WITH REAL COMPONENT PHOTOS -->
+    <section id="hardware" class="section-container">
+      <div class="container">
+        <div class="section-heading-wrap text-center">
+          <span class="section-tag" data-i18n="hardware_tag">IoT Device Architecture</span>
+          <h2 class="section-title" data-i18n="hardware_title">Vetronix Multisensor Hardware Components</h2>
+          <p class="section-subtitle" data-i18n="hardware_sub">
+            Engineered for durable, farm-grade use with real-time ADC signal conditioning, waterproof thermometry, and edge computer vision.
+          </p>
+        </div>
+
+        <!-- 4 Hardware Cards with Real Images -->
+        <div class="hardware-grid">
+          <!-- 1. ESP32 Microcontroller -->
+          <div class="hw-card">
+            <div class="hw-img-container">
+              <img src="https://commons.wikimedia.org/wiki/Special:FilePath/ESP-WROOM-32_ESP32_ESP-32S_Development_Board_20210214-P1080315.jpg?width=1000" 
+                   alt="ESP32 Microcontroller Module" 
+                   class="hw-real-img" data-fallback="assets/fallback-esp32cam.svg" referrerpolicy="no-referrer" data-fallback="assets/fallback-esp32.svg" referrerpolicy="no-referrer"
+                   onerror="this.src='https://commons.wikimedia.org/wiki/Special:FilePath/ESP-WROOM-32_ESP32_ESP-32S_Development_Board_20210214-P1080315.jpg?width=1000'">
+              <span class="hw-chip-badge">Brain Unit</span>
+            </div>
+            <div class="hw-card-body">
+              <h3>ESP32 Microcontroller</h3>
+              <p class="hw-desc" data-i18n="hw_esp32_desc">
+                High-performance dual-core Xtensa 32-bit LX6 MCU operating up to 240 MHz. Features integrated 2.4 GHz Wi-Fi and Bluetooth LE 4.2. Collects ADC telemetry from milk sensors, performs on-chip calibration, and transmits data to the Vetronix cloud dashboard.
+              </p>
+              <ul class="hw-specs-list">
+                <li><span>Clock Speed:</span> 240 MHz Dual-Core</li>
+                <li><span>Wireless:</span> 802.11 b/g/n Wi-Fi & BLE</li>
+                <li><span>ADC:</span> 12-bit SAR ADC (Up to 18 Channels)</li>
+                <li><span>Operating Temp:</span> -40°C to +125°C</li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- 2. TDS Meter 1.0 (Conductivity Sensor) -->
+          <div class="hw-card">
+            <div class="hw-img-container">
+              <img src="https://commons.wikimedia.org/wiki/Special:FilePath/Total_dissolved_solids_meter.jpg?width=1000" 
+                   alt="TDS Meter 1.0 Conductivity Sensor" 
+                   class="hw-real-img" data-fallback="assets/fallback-tds.svg" referrerpolicy="no-referrer">
+              <span class="hw-chip-badge">Electrolyte Sensor</span>
+            </div>
+            <div class="hw-card-body">
+              <h3>TDS Meter 1.0 (Conductivity)</h3>
+              <p class="hw-desc" data-i18n="hw_tds_desc">
+                Measures Total Dissolved Solids and electrical conductivity of fresh milk in parts per million (ppm). In mastitic milk, increased Na+ and Cl- ion concentration causes higher conductivity. Vetronix converts this reading directly to milliSiemens per centimeter (mS/cm).
+              </p>
+              <ul class="hw-specs-list">
+                <li><span>Measurement Range:</span> 0 ~ 1000 ppm</li>
+                <li><span>Accuracy:</span> ±10% F.S. (25°C)</li>
+                <li><span>Operating Voltage:</span> 3.3V ~ 5.5V</li>
+                <li><span>Output Signal:</span> 0 ~ 2.3V Analog</li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- 3. DS18B20 Waterproof Temperature Sensor -->
+          <div class="hw-card">
+            <div class="hw-img-container">
+              <img src="https://commons.wikimedia.org/wiki/Special:FilePath/Cjam-temperature-sensor.png?width=800" 
+                   alt="DS18B20 Waterproof Temperature Sensor Probe" 
+                   class="hw-real-img" data-fallback="assets/fallback-ds18b20.svg" referrerpolicy="no-referrer"
+                   onerror="this.src='https://commons.wikimedia.org/wiki/Special:FilePath/Cjam-temperature-sensor.png?width=800'">
+              <span class="hw-chip-badge">Thermal Probe</span>
+            </div>
+            <div class="hw-card-body">
+              <h3>Temperature Sensor (DS18B20)</h3>
+              <p class="hw-desc" data-i18n="hw_temp_desc">
+                High-precision, food-grade waterproof digital temperature sensor encased in a stainless steel probe tube. Detects micro-temperature variations in milk immediately upon milking, flagging localized udder hyperthermia caused by inflammatory immune response.
+              </p>
+              <ul class="hw-specs-list">
+                <li><span>Range:</span> -55°C to +125°C</li>
+                <li><span>Accuracy:</span> ±0.5°C (-10°C to +85°C)</li>
+                <li><span>Communication:</span> 1-Wire Digital Bus</li>
+                <li><span>Probe:</span> Food-Grade Stainless Steel</li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- 4. ESP32-CAM -->
+          <div class="hw-card">
+            <div class="hw-img-container">
+              <img src="https://commons.wikimedia.org/wiki/Special:FilePath/ESP32-CAM.jpg?width=1000" 
+                   alt="ESP32-CAM AI Vision Module" 
+                   class="hw-real-img"
+                   onerror="this.src='https://commons.wikimedia.org/wiki/Special:FilePath/ESP32-CAM_Development_Board.jpg?width=1000'">
+              <span class="hw-chip-badge">AI Vision Camera</span>
+            </div>
+            <div class="hw-card-body">
+              <h3>ESP32-CAM (Vision Sensor)</h3>
+              <p class="hw-desc" data-i18n="hw_cam_desc">
+                Compact camera development module with an OV2640 2-megapixel image sensor and onboard flash LED. Captures high-definition imagery of cattle teats and udder quarters, feeding the image into Model 2 to detect erythema, swelling, and lesions.
+              </p>
+              <ul class="hw-specs-list">
+                <li><span>Sensor:</span> OV2640 2MP Camera</li>
+                <li><span>Resolution:</span> UXGA (1600x1200)</li>
+                <li><span>Flash:</span> High-Luminance Onboard LED</li>
+                <li><span>RAM:</span> 520 KB SRAM + 4 MB PSRAM</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CATTLE RECORDS SECTION: MY CATTLE (ACCOUNT-ISOLATED) -->
+    <section id="cattle" class="section-container bg-subtle">
+      <div class="container">
+        <div class="section-heading-wrap text-center">
+          <span class="section-tag" data-i18n="cattle_tag">Dairy Herd Registry</span>
+          <h2 class="section-title" data-i18n="cattle_title">My Cattle</h2>
+          <p class="section-subtitle" data-i18n="cattle_sub">
+            Add your cattle details, save them, and view the complete registered cattle information on this website.
+          </p>
+        </div>
+
+        <div class="cattle-management-layout">
+          <!-- Cattle Registration Form -->
+          <div class="cattle-form-card">
+            <div class="card-title-row">
+              <div class="icon-circle">🐄</div>
+              <div>
+                <h3 data-i18n="add_cattle_heading">Register New Cattle</h3>
+                <p data-i18n="add_cattle_sub">Assign tag ID, breed, age, and previous mastitis history.</p>
+              </div>
+            </div>
+
+            <form id="addCattleForm">
+              <div class="form-row">
+                <div class="form-group flex-1">
+                  <label for="cattleType" data-i18n="label_cattle_type">Cattle Type</label>
+                  <select id="cattleType" required onchange="handleCattleTypeChange(this.value)">
+                    <option value="Cow">Cow (गाय)</option>
+                    <option value="Buffalo">Buffalo (भैंस)</option>
+                    <option value="Other">Other Cattle (अन्य)</option>
+                  </select>
+                </div>
+
+                <div class="form-group flex-1">
+                  <label for="cattleId" data-i18n="label_cattle_id">Cattle Tag ID</label>
+                  <input type="text" id="cattleId" placeholder="e.g. VTX-COW-101" required>
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group flex-1">
+                  <label for="cattleBreed" data-i18n="label_breed">Breed</label>
+                  <input type="text" id="cattleBreed" placeholder="e.g. Gir, Sahiwal, Murrah" required>
+                </div>
+
+                <div class="form-group flex-1">
+                  <label for="cattleAge" data-i18n="label_age">Age (Years)</label>
+                  <input type="number" id="cattleAge" min="1" max="25" step="0.5" placeholder="e.g. 4.5" required>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="cattleHistory" data-i18n="label_medical_history">Medical History (Previous Mastitis?)</label>
+                <select id="cattleHistory" required>
+                  <option value="No Prior Mastitis">No Prior Mastitis (कभी नहीं हुआ)</option>
+                  <option value="Mild Mastitis (Treated)">Mild Mastitis in Previous Lactation (उपचारित)</option>
+                  <option value="Chronic / Recurrent Mastitis">Chronic / Recurrent Mastitis (बार-बार होने वाला)</option>
+                </select>
+              </div>
+
+              <button type="submit" class="btn-primary-green btn-block" data-i18n="btn_save_cattle">
+                Save Cattle Details &rarr;
+              </button>
+            </form>
+          </div>
+
+          <!-- Cattle List Grid -->
+          <div class="cattle-list-wrapper">
+            <div class="list-header-row">
+              <h4 data-i18n="saved_cattle_title">Registered Cattle (<span id="cattleCountBadge">0</span>)</h4>
+            </div>
+
+            <div id="cattleCardsContainer" class="cattle-cards-grid">
+              <!-- Rendered Dynamically via JS -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- MODEL 1 PREDICTION SECTION: SENSOR TELEMETRY & TDS CONVERSION -->
+    <section id="model1" class="section-container">
+      <div class="container">
+        <div class="section-heading-wrap text-center">
+          <span class="section-tag" data-i18n="model1_tag">First-Stage ML Classifier</span>
+          <h2 class="section-title" data-i18n="model1_title">Model 1: Sensor-Based Mastitis Prediction</h2>
+          <p class="section-subtitle" data-i18n="model1_sub">
+            Evaluates Milk Temperature, Electrical Conductivity (converted from TDS sensor), and Milk Yield to compute initial mastitis probability.
+          </p>
+        </div>
+
+        <div class="prediction-card-box">
+          <form id="model1Form" onsubmit="runModel1Prediction(event)">
+            <div class="model1-inputs-grid">
+              <!-- Cattle ID Selection -->
+              <div class="form-group">
+                <label for="m1CattleSelect" data-i18n="label_select_cattle">Select Cattle ID</label>
+                <select id="m1CattleSelect" required onchange="populateCattleDetailsInModel1(this.value)">
+                  <option value="">-- Choose Cattle from Registered List --</option>
+                </select>
+              </div>
+
+              <!-- Milk Temperature (°C) -->
+              <div class="form-group">
+                <div class="label-with-badge">
+                  <label for="m1Temp" data-i18n="label_milk_temp">Milk Temperature (°C)</label>
+                  <span class="source-badge">DS18B20 / Manual</span>
+                </div>
+                <div class="input-unit-wrap">
+                  <input type="number" id="m1Temp" step="0.1" min="30" max="45" placeholder="e.g. 38.6" required>
+                  <span class="unit-text">°C</span>
+                </div>
+                <small class="field-hint">Normal range: 38.0°C - 39.2°C</small>
+              </div>
+
+              <!-- Milk Conductivity via TDS (ppm) -->
+              <div class="form-group">
+                <div class="label-with-badge">
+                  <label for="m1TdsPpm" data-i18n="label_tds_ppm">TDS Sensor Value (ppm)</label>
+                  <span class="source-badge">TDS Meter 1.0 / Manual</span>
+                </div>
+                <div class="input-unit-wrap">
+                  <input type="number" id="m1TdsPpm" step="1" min="100" max="4000" placeholder="e.g. 2500" required oninput="recalculateConductivity(this.value)">
+                  <span class="unit-text">ppm</span>
+                </div>
+                <small class="field-hint">Measured by TDS Meter 1.0</small>
+              </div>
+
+              <!-- Converted Milk Conductivity (mS/cm) -->
+              <div class="form-group highlight-calc-field">
+                <label for="m1Conductivity" data-i18n="label_conductivity_ms">Converted Milk Conductivity (mS/cm)</label>
+                <div class="input-unit-wrap">
+                  <input type="number" id="m1Conductivity" step="0.01" min="0.5" max="15.0" placeholder="Auto-calculated" readonly required>
+                  <span class="unit-text">mS/cm</span>
+                </div>
+                <small class="field-hint">Normal: &lt; 5.5 mS/cm | Mastitic: &ge; 5.8 mS/cm</small>
+              </div>
+
+              <!-- Milk Yield (Liters) - Always Manually Put -->
+              <div class="form-group">
+                <div class="label-with-badge">
+                  <label for="m1Yield" data-i18n="label_milk_yield">Milk Yield (Liters)</label>
+                  <span class="source-badge manual-only">Always Manual Input</span>
+                </div>
+                <div class="input-unit-wrap">
+                  <input type="number" id="m1Yield" step="0.1" min="0.5" max="50" placeholder="e.g. 14.5" required>
+                  <span class="unit-text">Liters</span>
+                </div>
+                <small class="field-hint">Current milking session yield</small>
+              </div>
+            </div>
+
+            <!-- Action Buttons: Fetch from ESP32 or Predict -->
+            <div class="model1-actions-bar">
+              <button type="button" class="btn-secondary-light" onclick="fetchLiveESP32Sensors()">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                <span data-i18n="btn_fetch_esp32">Fetch from ESP32 Sensor</span>
+              </button>
+
+              <button type="submit" class="btn-primary-green" id="btnPredictM1" data-i18n="btn_predict_m1">
+                Predict Mastitis Risk (Model 1) &rarr;
+              </button>
+            </div>
+          </form>
+
+          <!-- Explicit Formula Display in Lower Part -->
+          <div class="formula-box-card">
+            <div class="formula-icon">📐</div>
+            <div class="formula-text-content">
+              <h4 data-i18n="formula_title">Conductivity Conversion Formula</h4>
+              <div class="formula-equation">
+                <code>Milk Conductivity (mS/cm) = TDS (ppm) ÷ 500</code>
+              </div>
+              <p class="formula-explanation" data-i18n="formula_desc">
+                The TDS Meter 1.0 outputs Total Dissolved Solids in parts per million (ppm). Vetronix converts the reading to milk electrical conductivity using TDS (ppm) ÷ 500 for the trained Random Forest Classifier.
+              </p>
+            </div>
+          </div>
+
+          <!-- Model 1 Result Display Card -->
+          <div id="m1ResultCard" class="prediction-result-panel" style="display: none;">
+            <div class="result-header-row">
+              <div class="emoji-large" id="m1ResultEmoji">😊</div>
+              <div class="result-title-group">
+                <span class="result-model-badge">Model 1 Classifier Output</span>
+                <h3 id="m1RiskTitle" class="result-status-title">Low Mastitis Risk</h3>
+                <p id="m1RiskDescription" class="result-status-desc">Milk temperature and electrical conductivity are within healthy physiological limits.</p>
+              </div>
+              <div class="confidence-badge-wrap">
+                <span class="conf-label">Confidence</span>
+                <span id="m1ConfidenceScore" class="conf-val">96.8%</span>
+              </div>
+            </div>
+
+            <!-- Warning Trigger for Medium/High Risk -->
+            <div id="m1EscalationAlert" class="escalation-alert-box" style="display: none;">
+              <div class="alert-icon-anim">⚠️</div>
+              <div class="alert-body">
+                <strong data-i18n="alert_vision_needed_title">Action Required: Teat Inspection Triggered</strong>
+                <p data-i18n="alert_vision_needed_desc">
+                  Because Model 1 detected elevated risk, take a picture of the cattle's teats using the provided ESP32-CAM sensor camera or upload manually below for Model 2 Vision verification.
+                </p>
+                <a href="#model2" class="btn-escalation-action" data-i18n="btn_proceed_to_vision">
+                  Proceed to Model 2 (Teat Vision) &darr;
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- MODEL 2 PREDICTION SECTION: TEAT IMAGE COMPUTER VISION -->
+    <section id="model2" class="section-container bg-subtle">
+      <div class="container">
+        <div class="section-heading-wrap text-center">
+          <span class="section-tag" data-i18n="model2_tag">Second-Stage Vision Classifier</span>
+          <h2 class="section-title" data-i18n="model2_title">Model 2: Teat Vision ML Prediction</h2>
+          <p class="section-subtitle" data-i18n="model2_sub">
+            Analyzes teat and udder imagery for erythema (redness), swelling, hyperkeratosis, or external lesions using a trained Convolutional Neural Network (CNN).
+          </p>
+        </div>
+
+        <div class="vision-card-box">
+          <div class="vision-input-layout">
+            <!-- Left: Camera / Upload Controls -->
+            <div class="vision-controls-col">
+              <div class="card-title-row">
+                <div class="icon-circle">📷</div>
+                <div>
+                  <h3 data-i18n="teat_img_heading">Teat Image Acquisition</h3>
+                  <p data-i18n="teat_img_sub">Capture directly from ESP32-CAM or upload a photo manually.</p>
+                </div>
+              </div>
+
+              <!-- Options: ESP32-CAM Fetch or Manual Upload -->
+              <div class="vision-source-actions">
+                <button type="button" class="btn-secondary-light btn-block" onclick="captureFromEsp32Cam()">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                  <span data-i18n="btn_capture_esp32cam">Capture from ESP32-CAM Sensor</span>
+                </button>
+
+                <div class="or-separator"><span data-i18n="or_text">OR</span></div>
+
+                <div class="manual-upload-dropzone" id="teatDropzone" onclick="document.getElementById('teatFileInput').click()">
+                  <input type="file" id="teatFileInput" accept="image/*" style="display: none;" onchange="handleManualImageUpload(event)">
+                  <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="1.8"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                  <p><strong data-i18n="upload_teat_click">Click to Upload Teat Image</strong></p>
+                  <span data-i18n="upload_teat_drag">or drag and drop photo here (JPG, PNG)</span>
+                </div>
+              </div>
+
+              <button type="button" class="btn-primary-green btn-block" id="btnAnalyzeM2" onclick="runModel2VisionPrediction()" data-i18n="btn_analyze_m2">
+                Analyze Teat Image (Model 2) &rarr;
+              </button>
+            </div>
+
+            <!-- Right: Image Preview Box -->
+            <div class="vision-preview-col">
+              <div class="preview-frame" id="teatPreviewFrame">
+                <div class="empty-preview-placeholder" id="emptyPreviewNotice">
+                  <div class="cam-silhouette">📸</div>
+                  <p data-i18n="no_teat_img_yet">No teat image loaded yet. Click "Capture from ESP32-CAM" or upload manually.</p>
+                </div>
+                <img id="loadedTeatImage" class="loaded-teat-view" alt="Cattle Teat Inspection Preview" style="display: none;">
+                <div id="aiVisionScanOverlay" class="scan-laser-overlay" style="display: none;"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Model 2 Result Display Card -->
+          <div id="m2ResultCard" class="prediction-result-panel" style="display: none;">
+            <div class="result-header-row">
+              <div class="emoji-large" id="m2ResultEmoji">😊</div>
+              <div class="result-title-group">
+                <span class="result-model-badge">Model 2 Vision CNN Output</span>
+                <h3 id="m2RiskTitle" class="result-status-title">Healthy Teat Tissue</h3>
+                <p id="m2RiskDescription" class="result-status-desc">No erythema, udder swelling, or teat canal lesions detected by computer vision.</p>
+              </div>
+              <div class="confidence-badge-wrap">
+                <span class="conf-label">Confidence</span>
+                <span id="m2ConfidenceScore" class="conf-val">97.4%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- COMBINED CONSENSUS & VETERINARY CLINICAL DECISION SECTION -->
+    <section id="combined" class="section-container">
+      <div class="container">
+        <div class="section-heading-wrap text-center">
+          <span class="section-tag" data-i18n="combined_tag">Clinical Decision Support</span>
+          <h2 class="section-title" data-i18n="combined_title">Combined Model Consensus & Veterinary Suggestion</h2>
+          <p class="section-subtitle" data-i18n="combined_sub">
+            Holistic diagnostic summary fusing IoT physicochemical sensor telemetry with teat visual inspection.
+          </p>
+        </div>
+
+        <div id="combinedResultCard" class="combined-report-card">
+          <!-- Banner for Veterinary Recommendation -->
+          <div id="vetSuggestionBanner" class="vet-directive-banner low-risk-banner">
+            <div class="vet-banner-icon" id="vetBannerIcon">✅</div>
+            <div class="vet-banner-text">
+              <h3 id="vetBannerTitle">Cattle is Healthy — Routine Care</h3>
+              <p id="vetBannerInstruction">
+                Both Model 1 (Sensors) and Model 2 (Vision) indicate normal, non-mastitic parameters. Continue regular milking hygiene and scheduled herd monitoring.
+              </p>
+            </div>
+          </div>
+
+          <!-- Detailed Clinical Summary Table/Cards -->
+          <div class="clinical-summary-grid">
+            <!-- Left: Cattle Profile & Diagnostic Measurements -->
+            <div class="summary-subcard">
+              <h4 data-i18n="summary_cattle_header">Cattle Identification & Telemetry</h4>
+              <table class="report-data-table">
+                <tr>
+                  <th data-i18n="th_cattle_id">Cattle ID:</th>
+                  <td id="repCattleId">VTX-COW-101</td>
+                </tr>
+                <tr>
+                  <th data-i18n="th_breed">Breed:</th>
+                  <td id="repCattleBreed">Gir (Cow)</td>
+                </tr>
+                <tr>
+                  <th data-i18n="th_age">Age:</th>
+                  <td id="repCattleAge">4.5 Years</td>
+                </tr>
+                <tr>
+                  <th data-i18n="th_history">Medical History:</th>
+                  <td id="repCattleHistory">No Prior Mastitis</td>
+                </tr>
+                <tr>
+                  <th data-i18n="th_temp">Milk Temperature:</th>
+                  <td id="repMilkTemp">38.6 °C</td>
+                </tr>
+                <tr>
+                  <th data-i18n="th_cond">Milk Conductivity:</th>
+                  <td id="repMilkCond">5.00 mS/cm (2500 ppm TDS)</td>
+                </tr>
+                <tr>
+                  <th data-i18n="th_yield">Milk Yield:</th>
+                  <td id="repMilkYield">14.5 Liters</td>
+                </tr>
+              </table>
+            </div>
+
+            <!-- Right: Teat Image Preview & Dual Model Predictions -->
+            <div class="summary-subcard">
+              <h4 data-i18n="summary_models_header">AI Models & Vision Inspection</h4>
+              
+              <div class="report-img-strip">
+                <img id="repTeatThumb" src="https://commons.wikimedia.org/wiki/Special:FilePath/ESP32-CAM.jpg?width=1000" alt="Teat Inspection Thumbnail" class="rep-thumb-img" data-fallback="assets/fallback-cow.svg" referrerpolicy="no-referrer">
+                <div class="report-predictions-list">
+                  <div class="rep-pred-item">
+                    <span class="pred-name" data-i18n="rep_model1_label">Model 1 (Sensors):</span>
+                    <span id="repM1Badge" class="status-pill green">Low Risk 😊</span>
+                  </div>
+                  <div class="rep-pred-item">
+                    <span class="pred-name" data-i18n="rep_model2_label">Model 2 (Vision):</span>
+                    <span id="repM2Badge" class="status-pill green">Low Risk 😊</span>
+                  </div>
+                  <div class="rep-pred-item">
+                    <span class="pred-name" data-i18n="rep_combined_label">Combined Assessment:</span>
+                    <span id="repFinalBadge" class="status-pill green">Healthy Cattle</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Suggested Emergency Checklist (When Medium/High Risk) -->
+              <div id="vetActionChecklist" class="vet-checklist-box" style="display: none;">
+                <h5 data-i18n="checklist_title">🚨 Emergency Veterinary Protocols:</h5>
+                <ul>
+                  <li data-i18n="chk1">Immediately isolate the infected cattle to prevent contagious spread.</li>
+                  <li data-i18n="chk2">Discard milk from affected quarters — do not mix with commercial tank.</li>
+                  <li data-i18n="chk3">Apply cold compress / antiseptic teat dip to alleviate inflammation.</li>
+                  <li data-i18n="chk4">Contact your local Veterinary Officer for California Mastitis Test (CMT) & antibiotic prescription.</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <!-- Report Action Buttons -->
+          <div class="report-actions-footer">
+            <button type="button" class="btn-secondary-light" onclick="printMedicalReport()">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+              <span data-i18n="btn_print_report">Download / Print Clinical Report (PDF)</span>
+            </button>
+            <button type="button" class="btn-primary-green" onclick="saveDiagnosisToCattleRecord()">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+              <span data-i18n="btn_save_diagnosis">Save Diagnosis to Cattle Record</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CONTACT & SUPPORT SECTION -->
+    <section id="contact" class="section-container bg-subtle">
+      <div class="container">
+        <div class="section-heading-wrap text-center">
+          <span class="section-tag" data-i18n="contact_tag">Support & Agritech Help</span>
+          <h2 class="section-title" data-i18n="contact_title">Get in Touch with Vetronix Team</h2>
+          <p class="section-subtitle" data-i18n="contact_sub">
+            Have questions about sensor calibration, ESP32 setup, or veterinary consultations? Reach out to us.
+          </p>
+        </div>
+
+        <div class="contact-grid">
+          <!-- Contact Details Cards -->
+          <div class="contact-info-col">
+            <!-- Email -->
+            <div class="contact-detail-card">
+              <div class="contact-icon-box">✉️</div>
+              <div>
+                <span class="detail-label" data-i18n="contact_email_label">Official Support Email</span>
+                <a href="mailto:support@vetronix-dairy.in" class="detail-val">support@vetronix-dairy.in</a>
+              </div>
+            </div>
+
+            <!-- Phone -->
+            <div class="contact-detail-card">
+              <div class="contact-icon-box">📞</div>
+              <div>
+                <span class="detail-label" data-i18n="contact_phone_label">Direct Contact & Kisan Helpline</span>
+                <a href="tel:+919876543210" class="detail-val">+91 98765 43210 / 1800-180-1551 (Toll-Free)</a>
+              </div>
+            </div>
+
+            <!-- Instagram -->
+            <div class="contact-detail-card">
+              <div class="contact-icon-box">📸</div>
+              <div>
+                <span class="detail-label" data-i18n="contact_insta_label">Official Instagram Handle</span>
+                <a href="https://instagram.com/vetronix_ai_sih" target="_blank" rel="noopener" class="detail-val">@vetronix_ai_sih</a>
+              </div>
+            </div>
+
+            <!-- Innovation Hub -->
+            <div class="contact-detail-card">
+              <div class="contact-icon-box">📍</div>
+              <div>
+                <span class="detail-label" data-i18n="contact_addr_label">Research & Innovation Lab</span>
+                <span class="detail-val">Vetronix Agritech Labs, SIH 2026 Hub, New Delhi, India</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Working Message Form -->
+          <div class="contact-form-card">
+            <h4 data-i18n="inquiry_heading">Send a Quick Inquiry</h4>
+            <form id="contactForm" onsubmit="handleContactSubmit(event)">
+              <div class="form-group">
+                <label for="contactName" data-i18n="label_your_name">Your Name</label>
+                <input type="text" id="contactName" placeholder="e.g. Dr. A. Sharma" required>
+              </div>
+
+              <div class="form-group">
+                <label for="contactEmail" data-i18n="label_your_email">Your Email or Mobile</label>
+                <input type="text" id="contactEmail" placeholder="e.g. sharma@vetclinic.in" required>
+              </div>
+
+              <div class="form-group">
+                <label for="contactMessage" data-i18n="label_your_msg">Message / Question</label>
+                <textarea id="contactMessage" rows="4" placeholder="Ask about ESP32 probe calibration, model weights, or farm deployment..." required></textarea>
+              </div>
+
+              <button type="submit" class="btn-primary-green btn-block" data-i18n="btn_send_inquiry">
+                Send Message &rarr;
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FOOTER -->
+    <footer class="main-footer">
+      <div class="container footer-content">
+        <div class="footer-left">
+          <div class="brand-title">Vetronix<span class="brand-green">.AI</span></div>
+          <p class="footer-copy" data-i18n="footer_copy">
+            &copy; 2026 Vetronix AIoT Dairy Healthcare. Developed for Smart India Hackathon (SIH 2026).
+          </p>
+        </div>
+
+        <div class="footer-links">
+          <a href="#overview" data-i18n="nav_overview">Overview</a>
+          <a href="#hardware" data-i18n="nav_hardware">Hardware</a>
+          <a href="#cattle" data-i18n="nav_cattle">My Cattle</a>
+          <a href="#model1" data-i18n="nav_model1">Model 1</a>
+          <a href="#model2" data-i18n="nav_model2">Model 2</a>
+          <a href="#contact" data-i18n="nav_contact">Contact</a>
+        </div>
+      </div>
+    </footer>
+
+  </div> <!-- /mainPlatformWrapper -->
+
+  <!-- Supabase Auth client (publishable key only; no design/UI changes) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="app.js"></script>
+</body>
+</html>

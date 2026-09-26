@@ -1,0 +1,1 @@
+VETRONIX image assets. The website uses real external photos first and local SVG fallbacks so images remain visible if an external host is unavailable. Hardware photo sources include Wikimedia Commons. The local SVGs are only fallbacks, not photographs.

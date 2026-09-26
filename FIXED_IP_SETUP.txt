@@ -1,0 +1,16 @@
+VETRONIX FINAL NETWORK SETUP
+
+Computer / Python backend IPv4:
+10.227.183.30
+
+ESP32 fixed IP:
+10.227.183.50
+
+Assumed gateway:
+10.227.183.1
+
+IMPORTANT:
+Before uploading the ESP32 code, confirm `Default Gateway` in Windows `ipconfig`.
+If it is not 10.227.183.1, change the gateway in the .ino file accordingly.
+
+The website/backend sensor values are intended to display temperature and TDS to two decimal places.

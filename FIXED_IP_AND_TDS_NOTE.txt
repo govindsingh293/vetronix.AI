@@ -1,0 +1,22 @@
+VETRONIX corrected network setup
+
+Computer / Python backend:
+10.227.183.30
+
+ESP32 fixed IP:
+10.227.183.50
+
+Assumed Wi-Fi gateway:
+10.227.183.1
+
+IMPORTANT:
+Confirm the Default Gateway in Windows ipconfig before uploading. If it is not
+10.227.183.1, change the gateway in ESP32_Sensor.ino.
+
+The observed 31.75 C is a valid DS18B20 reading.
+The observed 0.00 ppm and 0.000 V means the ESP32 ADC is currently seeing zero
+voltage from the TDS analog output. This is normally a wiring/power/output
+issue, not a static-IP issue. Do not expect the ZIP to turn 0 V into a nonzero
+TDS value without a real analog signal.
+
+Website temperature and TDS fields already use two decimal places.
