@@ -19,7 +19,7 @@
 // Keep this URL for local development. Change it later to the deployed
 // FastAPI backend URL when the project is deployed.
 // =========================================================================
-const API_URL = "http://127.0.0.1:8000";
+const API_URL = "https://vetronix-ai.onrender.com";
 
 // ESP32 live telemetry is read by the FastAPI backend.
 // Change this only if your ESP32 network/IP changes; the browser
