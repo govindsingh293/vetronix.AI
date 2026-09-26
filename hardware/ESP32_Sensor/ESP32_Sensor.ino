@@ -3,24 +3,23 @@
   DS18B20 -> GPIO 4
   TDS Meter V1.0 analog output -> GPIO 34
 
-  Current local data flow:
-  ESP32 -> HTTP POST /api/esp32/sensor -> FastAPI -> Website
-
-  After Render deployment, the backend URL can be changed to HTTPS.
+  Current data flow:
+  ESP32 -> HTTPS POST /api/esp32/sensor -> FastAPI on Render -> Website
 */
 
 #include <WiFi.h>
 #include <WiFiManager.h>
 #include <HTTPClient.h>
+#include <WiFiClientSecure.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
 
 // ============================================================================
-// BACKEND URL - CURRENT LOCAL TEST
+// BACKEND URL - DEPLOYED RENDER BACKEND
 // ============================================================================
 
 const char* BACKEND_SENSOR_URL =
-    "http://192.168.1.4:8000/api/esp32/sensor";
+    "https://vetronix-ai.onrender.com/api/esp32/sensor";
 
 // ============================================================================
 // SENSOR PINS
@@ -120,13 +119,17 @@ void sendSensorDataToBackend() {
     return;
   }
 
-  // CURRENTLY USING LOCAL HTTP BACKEND
-  WiFiClient client;
+  // HTTPS client for Render backend
+  WiFiClientSecure client;
+
+  // Allow HTTPS connection to Render without manually loading
+  // the Render SSL certificate into the ESP32.
+  client.setInsecure();
 
   HTTPClient http;
 
   if (!http.begin(client, BACKEND_SENSOR_URL)) {
-    Serial.println("Could not start HTTP connection to backend.");
+    Serial.println("Could not start HTTPS connection to backend.");
     return;
   }
 
@@ -217,7 +220,7 @@ void setup() {
   Serial.println(WiFi.localIP());
 
   Serial.println(
-      "ESP32 is connected to the local FastAPI backend."
+      "ESP32 is connected to the deployed FastAPI backend."
   );
 
   Serial.println(
@@ -248,14 +251,20 @@ void loop() {
     return;
   }
 
-  // Read sensors
+  // ========================================================================
+  // READ SENSORS
+  // ========================================================================
+
   temperatureC = readTemperature();
 
   tdsPpm = readTDS(temperatureC);
 
   Serial.println("--------------------------");
 
-  // Temperature
+  // ========================================================================
+  // TEMPERATURE
+  // ========================================================================
+
   Serial.print("Temperature: ");
 
   if (isnan(temperatureC)) {
@@ -265,30 +274,41 @@ void loop() {
   } else {
 
     Serial.print(temperatureC, 2);
-
     Serial.println(" °C");
   }
 
+  // ========================================================================
   // TDS
+  // ========================================================================
+
   Serial.print("TDS: ");
 
   Serial.print(tdsPpm, 2);
 
   Serial.println(" ppm");
 
-  // Voltage
+  // ========================================================================
+  // VOLTAGE
+  // ========================================================================
+
   Serial.print("TDS Voltage: ");
 
   Serial.print(tdsVoltage, 3);
 
   Serial.println(" V");
 
+  // ========================================================================
   // ESP32 IP
+  // ========================================================================
+
   Serial.print("WiFi IP: ");
 
   Serial.println(WiFi.localIP());
 
-  // Send every 2 seconds
+  // ========================================================================
+  // SEND EVERY 2 SECONDS
+  // ========================================================================
+
   if (millis() - lastCloudSend >= CLOUD_SEND_INTERVAL_MS) {
 
     lastCloudSend = millis();
