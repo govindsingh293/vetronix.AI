@@ -724,7 +724,7 @@ IMAGE_CLASSES = [
 
 
 # ============================================================
-# 11. SENSOR REQUEST MODEL
+# 11. SENSOR REQUEST MODELS & ESP32 TELEMETRY
 # ============================================================
 
 class SensorData(BaseModel):
@@ -735,105 +735,98 @@ class SensorData(BaseModel):
 
     Milk_Yield: float
 
-class ESP32LiveConfig(BaseModel):
-    """Optional runtime override for the ESP32 base URL."""
-    base_url: str | None = None
+
+class ESP32SensorPushData(BaseModel):
+    """Telemetry pushed directly from the ESP32 to FastAPI."""
+
+    temperature: float
+    tds: float
+    voltage: float = 0.0
 
 
-# Latest sensor telemetry received from the ESP32.
-# This is kept in memory for local development; Supabase can be added later.
+# Latest telemetry received from the ESP32.
+# The ESP32 pushes data to this backend; the website reads it through
+# /api/esp32-live. No ESP32 private/local IP is required here.
 latest_sensor_data = None
 
-# Current ESP32 Dev Module address. Override with the ESP32_BASE_URL
-# environment variable if your router/hotspot assigns a new IP.
-ESP32_BASE_URL = os.getenv("ESP32_BASE_URL", "http://10.227.183.50").rstrip("/")
+
+@app.post("/api/esp32/sensor")
+def receive_esp32_sensor_data(data: ESP32SensorPushData):
+    """Receive live sensor telemetry from the ESP32 over HTTP/HTTPS."""
+    global latest_sensor_data
+
+    temperature = float(data.temperature)
+    tds_ppm = float(data.tds)
+    voltage = float(data.voltage)
+    conductivity = tds_ppm / 500.0
+
+    latest_sensor_data = {
+        "Milk_Temperature": round(temperature, 2),
+        "TDS_PPM": round(tds_ppm, 2),
+        "TDS_Voltage": round(voltage, 4),
+        "Milk_Conductivity": round(conductivity, 4),
+        "timestamp": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
+    }
+
+    return {
+        "success": True,
+        "message": "ESP32 sensor data received successfully.",
+        "data": latest_sensor_data,
+    }
 
 
 @app.get("/api/esp32-live")
 def get_esp32_live():
-    """Read the live JSON telemetry directly from the ESP32.
+    """Return the latest telemetry pushed by the ESP32.
 
-    The browser talks only to FastAPI. FastAPI talks to the ESP32.
-    This keeps the existing frontend UI unchanged and avoids ESP32
-    browser CORS/mixed-content problems.
+    The browser never connects directly to the ESP32. This makes the
+    system work even when the ESP32 receives a different private IP on
+    another Wi-Fi network.
     """
-    url = f"{ESP32_BASE_URL}/data"
-
-    try:
-        # Do not use HTTP(S)_PROXY environment variables for the local ESP32.
-        # The browser can reach the ESP32 directly on the LAN, so FastAPI
-        # must also connect directly instead of sending 10.x traffic to a proxy.
-        with httpx.Client(timeout=httpx.Timeout(8.0, connect=3.0), trust_env=False) as client:
-            response = client.get(url)
-            response.raise_for_status()
-            payload = response.json()
-    except Exception as exc:
+    if latest_sensor_data is None:
         raise HTTPException(
-            status_code=502,
-            detail=f"ESP32 is not reachable at {url}. Check that this PC can reach the ESP32 from the same network. {type(exc).__name__}: {exc}",
+            status_code=404,
+            detail="No ESP32 sensor data received yet. Power the ESP32 and connect it to the backend.",
         )
-
-    # Compatible with the current ESP32 web-server JSON:
-    # {"temperature": 28.0, "tds": 250.0, "voltage": 0.713}
-    try:
-        temperature = float(
-            payload.get("temperature", payload.get("Milk_Temperature"))
-        )
-        tds_ppm = float(
-            payload.get("tds", payload.get("TDS_PPM"))
-        )
-        voltage = float(
-            payload.get("voltage", payload.get("TDS_Voltage", 0.0))
-        )
-    except (TypeError, ValueError, AttributeError):
-        raise HTTPException(
-            status_code=502,
-            detail=f"ESP32 returned an unexpected /data response: {payload}",
-        )
-
-    conductivity = tds_ppm / 500.0
 
     return {
         "success": True,
-        "Milk_Temperature": temperature,
-        "TDS_PPM": round(tds_ppm, 2),
-        "TDS_Voltage": round(voltage, 4),
-        "Milk_Conductivity": round(conductivity, 4),
-        "raw": payload,
+        **latest_sensor_data,
     }
 
 
 @app.post("/api/sensor-data")
 def receive_sensor_data(data: SensorData):
-    """Receive the latest temperature/conductivity/yield data from ESP32."""
+    """Legacy sensor-store endpoint kept for existing frontend compatibility."""
     global latest_sensor_data
 
     latest_sensor_data = {
-        "Milk_Temperature": data.Milk_Temperature,
-        "Milk_Conductivity": data.Milk_Conductivity,
+        "Milk_Temperature": round(data.Milk_Temperature, 2),
+        "Milk_Conductivity": round(data.Milk_Conductivity, 4),
         "Milk_Yield": data.Milk_Yield,
-        "TDS_PPM": round(data.Milk_Conductivity * 500, 2)
+        "TDS_PPM": round(data.Milk_Conductivity * 500, 2),
+        "TDS_Voltage": 0.0,
     }
 
     return {
         "success": True,
         "message": "Sensor data received successfully.",
-        "data": latest_sensor_data
+        "data": latest_sensor_data,
     }
 
 
 @app.get("/api/sensor-data")
 def get_sensor_data():
-    """Return the latest sensor telemetry for the frontend."""
+    """Return the latest sensor telemetry."""
     if latest_sensor_data is None:
         raise HTTPException(
             status_code=404,
-            detail="No sensor data received yet. Send data from the ESP32 first."
+            detail="No sensor data received yet. Send data from the ESP32 first.",
         )
 
     return {
         "success": True,
-        **latest_sensor_data
+        **latest_sensor_data,
     }
 
 
