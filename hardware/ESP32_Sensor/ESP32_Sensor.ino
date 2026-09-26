@@ -23,7 +23,7 @@
 // After Render deployment, replace YOUR-RENDER-SERVICE with the actual
 // Render service name. Do not add a trailing slash.
 const char* BACKEND_SENSOR_URL =
-    "https://YOUR-RENDER-SERVICE.onrender.com/api/esp32/sensor";
+     "http://192.168.1.4:8000/api/esp32/sensor";
 
 #define DS18B20_PIN 4
 #define TDS_PIN 34
