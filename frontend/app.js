@@ -373,6 +373,7 @@ let currentLanguage = 'en';
 let activeUser = null;
 let simulatedOtp = null;
 let currentTeatImageBase64 = null;
+let currentTeatImageFile = null;
 let currentModel1Result = null;
 let currentModel2Result = null;
 // Keep manually entered sensor values from being overwritten
@@ -1550,7 +1551,8 @@ function captureFromEsp32Cam() {
     : SAMPLE_TEAT_IMAGES.healthy;
 
   loadedImg.src = sampleUrl;
-  currentTeatImageBase64 = sampleUrl;
+currentTeatImageBase64 = sampleUrl;
+currentTeatImageFile = null;
 
   setTimeout(() => {
     laserOverlay.style.display = 'none';
@@ -1562,18 +1564,32 @@ function captureFromEsp32Cam() {
  */
 function handleManualImageUpload(event) {
   const file = event.target.files[0];
-  if (!file) return;
+
+  if (!file) {
+    return;
+  }
+
+  // Keep the original uploaded image file for Model 2 prediction
+  currentTeatImageFile = file;
 
   const reader = new FileReader();
+
   reader.onload = function(e) {
-    const emptyNotice = document.getElementById('emptyPreviewNotice');
-    const loadedImg = document.getElementById('loadedTeatImage');
-    
+    const emptyNotice =
+      document.getElementById('emptyPreviewNotice');
+
+    const loadedImg =
+      document.getElementById('loadedTeatImage');
+
     emptyNotice.style.display = 'none';
     loadedImg.style.display = 'block';
+
     loadedImg.src = e.target.result;
+
+    // Keep this for displaying the image
     currentTeatImageBase64 = e.target.result;
   };
+
   reader.readAsDataURL(file);
 }
 
@@ -1593,16 +1609,32 @@ async function runModel2VisionPrediction() {
   laserOverlay.style.display = 'block';
 
   try {
+  const formData = new FormData();
+
+  let imageBlob;
+
+  if (currentTeatImageFile) {
+    imageBlob = currentTeatImageFile;
+  } else {
     const response = await fetch(currentTeatImageBase64);
-    const imageBlob = await response.blob();
 
-    const formData = new FormData();
-    formData.append('file', imageBlob, 'teat-image.jpg');
+    if (!response.ok) {
+      throw new Error('Could not load the captured image.');
+    }
 
-    const apiResponse = await fetch(`${API_URL}/api/predict-image`, {
-      method: 'POST',
-      body: formData
-    });
+    imageBlob = await response.blob();
+  }
+
+  formData.append(
+    'file',
+    imageBlob,
+    imageBlob.name || 'teat-image.jpg'
+  );
+
+  const apiResponse = await fetch(`${API_URL}/api/predict-image`, {
+    method: 'POST',
+    body: formData
+  });
 
     const data = await apiResponse.json();
 
