@@ -5,6 +5,10 @@
 # Models:
 # 1. mastitis_model.pkl -> Sensor prediction
 # 2. mastitis_model.pth -> Image prediction
+#
+# Render Free memory optimization:
+# PyTorch / torchvision / image model are loaded only when
+# image prediction is requested.
 # ============================================================
 
 import os
@@ -21,18 +25,11 @@ from pydantic import BaseModel
 
 from PIL import Image
 
-import torch
-import torch.nn as nn
-from torchvision import models, transforms
-
 
 # ============================================================
 # SUPABASE CONNECTION
 # ============================================================
-# The publishable key is safe for client applications when RLS
-# policies are configured. This backend uses the same publishable
-# key and the policies supplied in supabase_setup.sql.
-# ============================================================
+
 SUPABASE_URL = os.getenv(
     "SUPABASE_URL",
     "https://uyqratuxyjfnxeerhlbg.supabase.co"
@@ -49,20 +46,28 @@ SUPABASE_HEADERS = {
 }
 
 
-def supabase_request(method, table, params=None, json_data=None, access_token=None):
-    """Small REST helper for Supabase Data API.
+def supabase_request(
+    method,
+    table,
+    params=None,
+    json_data=None,
+    access_token=None
+):
+    """Small REST helper for Supabase Data API."""
 
-    When access_token is supplied, Supabase sees the authenticated user and
-    applies the project's authenticated RLS policies.
-    """
     url = f"{SUPABASE_URL}/rest/v1/{table}"
+
     headers = dict(SUPABASE_HEADERS)
-    headers["Authorization"] = f"Bearer {access_token or SUPABASE_KEY}"
+
+    headers["Authorization"] = (
+        f"Bearer {access_token or SUPABASE_KEY}"
+    )
 
     if method.upper() in {"POST", "PATCH"} and json_data is not None:
         headers["Prefer"] = "return=representation"
 
     with httpx.Client(timeout=15.0) as client:
+
         response = client.request(
             method.upper(),
             url,
@@ -72,77 +77,154 @@ def supabase_request(method, table, params=None, json_data=None, access_token=No
         )
 
     if response.status_code >= 400:
+
         try:
             detail = response.json()
+
         except Exception:
             detail = response.text
+
         raise RuntimeError(
-            f"Supabase {table} request failed ({response.status_code}): {detail}"
+            f"Supabase {table} request failed "
+            f"({response.status_code}): {detail}"
         )
 
     if not response.content:
         return []
+
     try:
         return response.json()
+
     except Exception:
         return []
 
 
 def get_supabase_auth_user(access_token):
     """Validate a Supabase access token using Supabase Auth."""
+
     if not access_token:
-        raise HTTPException(status_code=401, detail="Missing Supabase access token.")
+
+        raise HTTPException(
+            status_code=401,
+            detail="Missing Supabase access token."
+        )
 
     url = f"{SUPABASE_URL}/auth/v1/user"
+
     headers = {
         "apikey": SUPABASE_KEY,
         "Authorization": f"Bearer {access_token}",
     }
 
     try:
+
         with httpx.Client(timeout=15.0) as client:
-            response = client.get(url, headers=headers)
+
+            response = client.get(
+                url,
+                headers=headers
+            )
+
     except httpx.HTTPError as exc:
-        raise HTTPException(status_code=502, detail=f"Supabase Auth unavailable: {exc}")
+
+        raise HTTPException(
+            status_code=502,
+            detail=f"Supabase Auth unavailable: {exc}"
+        )
 
     if response.status_code != 200:
-        raise HTTPException(status_code=401, detail="Invalid or expired Supabase session.")
+
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or expired Supabase session."
+        )
 
     try:
+
         return response.json()
+
     except Exception:
-        raise HTTPException(status_code=401, detail="Invalid Supabase Auth response.")
+
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid Supabase Auth response."
+        )
 
 
-def require_supabase_user(authorization: str | None = Header(default=None)):
+def require_supabase_user(
+    authorization: str | None = Header(default=None)
+):
     """FastAPI dependency used by all Supabase data endpoints."""
-    if not authorization or not authorization.lower().startswith("bearer "):
-        raise HTTPException(status_code=401, detail="Supabase Bearer token is required.")
 
-    token = authorization.split(" ", 1)[1].strip()
+    if (
+        not authorization
+        or not authorization.lower().startswith("bearer ")
+    ):
+
+        raise HTTPException(
+            status_code=401,
+            detail="Supabase Bearer token is required."
+        )
+
+    token = authorization.split(
+        " ",
+        1
+    )[1].strip()
+
     if not token:
-        raise HTTPException(status_code=401, detail="Supabase Bearer token is required.")
+
+        raise HTTPException(
+            status_code=401,
+            detail="Supabase Bearer token is required."
+        )
 
     user = get_supabase_auth_user(token)
-    return {"token": token, "user": user}
+
+    return {
+        "token": token,
+        "user": user
+    }
 
 
 def auth_user_email(auth_user):
-    return (auth_user.get("email") or "").strip().lower()
+
+    return (
+        auth_user.get("email") or ""
+    ).strip().lower()
 
 
-
-def ensure_supabase_farmer(name, identifier, farm_name=None, auth_user_id=None, access_token=None, auth_email=None):
+def ensure_supabase_farmer(
+    name,
+    identifier,
+    farm_name=None,
+    auth_user_id=None,
+    access_token=None,
+    auth_email=None
+):
     """Find or create the farmer row belonging to the authenticated user."""
+
     identifier = (identifier or "").strip()
-    name = (name or "Farmer").strip()
-    farm_name = (farm_name or "").strip()
-    auth_email = (auth_email or "").strip().lower()
+
+    name = (
+        name or "Farmer"
+    ).strip()
+
+    farm_name = (
+        farm_name or ""
+    ).strip()
+
+    auth_email = (
+        auth_email or ""
+    ).strip().lower()
 
     if not auth_user_id:
-        raise RuntimeError("Authenticated Supabase user ID is required.")
 
-    # First try the direct Auth-user relationship.
+        raise RuntimeError(
+            "Authenticated Supabase user ID is required."
+        )
+
+    # First try direct Auth-user relationship.
+
     rows = supabase_request(
         "GET",
         "farmers",
@@ -155,20 +237,28 @@ def ensure_supabase_farmer(name, identifier, farm_name=None, auth_user_id=None, 
     )
 
     if rows:
+
         farmer_id = rows[0]["id"]
+
         supabase_request(
             "PATCH",
             "farmers",
-            params={"id": f"eq.{farmer_id}"},
-            json_data={"name": name, "farm_name": farm_name},
+            params={
+                "id": f"eq.{farmer_id}"
+            },
+            json_data={
+                "name": name,
+                "farm_name": farm_name
+            },
             access_token=access_token,
         )
+
         return farmer_id
 
-    # Claim an existing farmer row only when its email matches the
-    # authenticated Supabase email. This supports a safe migration of
-    # pre-existing email-based farmer rows.
+    # Claim existing farmer row only when email matches.
+
     if auth_email:
+
         rows = supabase_request(
             "GET",
             "farmers",
@@ -179,12 +269,17 @@ def ensure_supabase_farmer(name, identifier, farm_name=None, auth_user_id=None, 
             },
             access_token=access_token,
         )
+
         if rows:
+
             farmer_id = rows[0]["id"]
+
             supabase_request(
                 "PATCH",
                 "farmers",
-                params={"id": f"eq.{farmer_id}"},
+                params={
+                    "id": f"eq.{farmer_id}"
+                },
                 json_data={
                     "auth_user_id": auth_user_id,
                     "name": name,
@@ -192,13 +287,26 @@ def ensure_supabase_farmer(name, identifier, farm_name=None, auth_user_id=None, 
                 },
                 access_token=access_token,
             )
+
             return farmer_id
 
-    # New farmer. The RLS policy requires auth_user_id = auth.uid().
+    # New farmer.
+
     payload = {
         "auth_user_id": auth_user_id,
-        "email": auth_email or (identifier.lower() if "@" in identifier else None),
-        "mobile": identifier if "@" not in identifier else None,
+        "email": (
+            auth_email
+            or (
+                identifier.lower()
+                if "@" in identifier
+                else None
+            )
+        ),
+        "mobile": (
+            identifier
+            if "@" not in identifier
+            else None
+        ),
         "name": name,
         "farm_name": farm_name,
     }
@@ -209,12 +317,22 @@ def ensure_supabase_farmer(name, identifier, farm_name=None, auth_user_id=None, 
         json_data=payload,
         access_token=access_token,
     )
+
     if not rows:
-        raise RuntimeError("Supabase did not return the new farmer record.")
+
+        raise RuntimeError(
+            "Supabase did not return the new farmer record."
+        )
+
     return rows[0]["id"]
 
 
-def find_supabase_cattle(farmer_id, cow_id, access_token=None):
+def find_supabase_cattle(
+    farmer_id,
+    cow_id,
+    access_token=None
+):
+
     rows = supabase_request(
         "GET",
         "cattle",
@@ -226,55 +344,123 @@ def find_supabase_cattle(farmer_id, cow_id, access_token=None):
         },
         access_token=access_token,
     )
+
     return rows[0] if rows else None
 
 
-def upsert_supabase_cattle(farmer_id, cattle, access_token=None):
-    existing = find_supabase_cattle(farmer_id, cattle["cow_id"], access_token)
+def upsert_supabase_cattle(
+    farmer_id,
+    cattle,
+    access_token=None
+):
+
+    existing = find_supabase_cattle(
+        farmer_id,
+        cattle["cow_id"],
+        access_token
+    )
+
     payload = {
         "farmer_id": farmer_id,
         "cow_id": cattle["cow_id"],
-        "breed": cattle.get("breed", ""),
-        "age": cattle.get("age"),
-        "animal_type": cattle.get("type", "Other"),
-        "medical_history": cattle.get("history", ""),
+        "breed": cattle.get(
+            "breed",
+            ""
+        ),
+        "age": cattle.get(
+            "age"
+        ),
+        "animal_type": cattle.get(
+            "type",
+            "Other"
+        ),
+        "medical_history": cattle.get(
+            "history",
+            ""
+        ),
     }
+
     if existing:
+
         rows = supabase_request(
             "PATCH",
             "cattle",
-            params={"id": f"eq.{existing['id']}"},
+            params={
+                "id": f"eq.{existing['id']}"
+            },
             json_data=payload,
             access_token=access_token,
         )
+
         return rows[0] if rows else existing
+
     rows = supabase_request(
-        "POST", "cattle", json_data=payload, access_token=access_token
+        "POST",
+        "cattle",
+        json_data=payload,
+        access_token=access_token
     )
+
     return rows[0] if rows else None
 
 
-def get_supabase_cattle(farmer_id, access_token=None):
+def get_supabase_cattle(
+    farmer_id,
+    access_token=None
+):
+
     return supabase_request(
         "GET",
         "cattle",
         params={
             "farmer_id": f"eq.{farmer_id}",
-            "select": "id,created_at,cow_id,breed,age,animal_type,medical_history",
+            "select": (
+                "id,created_at,cow_id,breed,age,"
+                "animal_type,medical_history"
+            ),
             "order": "id.asc",
         },
         access_token=access_token,
     )
 
 
-def supabase_cattle_by_tag(farmer_id, cow_id, access_token=None):
-    return find_supabase_cattle(farmer_id, cow_id, access_token)
+def supabase_cattle_by_tag(
+    farmer_id,
+    cow_id,
+    access_token=None
+):
+
+    return find_supabase_cattle(
+        farmer_id,
+        cow_id,
+        access_token
+    )
 
 
-def save_sensor_and_prediction(farmer_id, cow_id, temperature, conductivity, milk_yield, prediction, probability, model_name, access_token=None):
-    cattle = supabase_cattle_by_tag(farmer_id, cow_id, access_token)
+def save_sensor_and_prediction(
+    farmer_id,
+    cow_id,
+    temperature,
+    conductivity,
+    milk_yield,
+    prediction,
+    probability,
+    model_name,
+    access_token=None
+):
+
+    cattle = supabase_cattle_by_tag(
+        farmer_id,
+        cow_id,
+        access_token
+    )
+
     if not cattle:
-        raise RuntimeError(f"Cattle '{cow_id}' was not found in Supabase for this farmer.")
+
+        raise RuntimeError(
+            f"Cattle '{cow_id}' was not found "
+            "in Supabase for this farmer."
+        )
 
     sensor_rows = supabase_request(
         "POST",
@@ -287,48 +473,83 @@ def save_sensor_and_prediction(farmer_id, cow_id, temperature, conductivity, mil
         },
         access_token=access_token,
     )
-    sensor_row = sensor_rows[0] if sensor_rows else None
+
+    sensor_row = (
+        sensor_rows[0]
+        if sensor_rows
+        else None
+    )
 
     prediction_rows = supabase_request(
         "POST",
         "predictions",
         json_data={
             "cattle_id": cattle["id"],
-            "sensor_reading_id": sensor_row["id"] if sensor_row else None,
+            "sensor_reading_id": (
+                sensor_row["id"]
+                if sensor_row
+                else None
+            ),
             "prediction": prediction,
             "probability": probability,
             "model_name": model_name,
         },
         access_token=access_token,
     )
+
     return {
         "sensor_reading": sensor_row,
-        "prediction": prediction_rows[0] if prediction_rows else None,
+        "prediction": (
+            prediction_rows[0]
+            if prediction_rows
+            else None
+        ),
     }
 
 
-def save_image_prediction(farmer_id, cow_id, image_url, prediction, probability, model_name, access_token=None):
-    cattle = supabase_cattle_by_tag(farmer_id, cow_id, access_token)
+def save_image_prediction(
+    farmer_id,
+    cow_id,
+    image_url,
+    prediction,
+    probability,
+    model_name,
+    access_token=None
+):
+
+    cattle = supabase_cattle_by_tag(
+        farmer_id,
+        cow_id,
+        access_token
+    )
+
     if not cattle:
-        raise RuntimeError(f"Cattle '{cow_id}' was not found in Supabase for this farmer.")
+
+        raise RuntimeError(
+            f"Cattle '{cow_id}' was not found "
+            "in Supabase for this farmer."
+        )
 
     rows = supabase_request(
         "POST",
         "image_predictions",
         json_data={
             "cattle_id": cattle["id"],
-            "image_url": image_url or "teat-image.jpg",
+            "image_url": (
+                image_url or "teat-image.jpg"
+            ),
             "prediction": prediction,
             "probability": probability,
             "model_name": model_name,
         },
         access_token=access_token,
     )
+
     return rows[0] if rows else None
 
 
 # ============================================================
-# 1. FASTAPI APP
+# FASTAPI APP
 # ============================================================
 
 app = FastAPI(
@@ -339,7 +560,7 @@ app = FastAPI(
 
 
 # ============================================================
-# 2. CORS
+# CORS
 # ============================================================
 
 app.add_middleware(
@@ -352,12 +573,17 @@ app.add_middleware(
 
 
 # ============================================================
-# 3. PATHS
+# PATHS
 # ============================================================
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = os.path.dirname(
+    os.path.abspath(__file__)
+)
 
-MODELS_DIR = os.path.join(BASE_DIR, "models")
+MODELS_DIR = os.path.join(
+    BASE_DIR,
+    "models"
+)
 
 SENSOR_MODEL_PATH = os.path.join(
     MODELS_DIR,
@@ -371,12 +597,14 @@ IMAGE_MODEL_PATH = os.path.join(
 
 
 # ============================================================
-# 4. DEVICE
+# DEVICE
 # ============================================================
 
-DEVICE = torch.device(
-    "cuda" if torch.cuda.is_available() else "cpu"
-)
+# PyTorch is not imported during startup.
+# The image model uses CPU when it is loaded.
+
+DEVICE = "cpu"
+
 
 print("=" * 60)
 print("VETRONIX BACKEND STARTING")
@@ -401,58 +629,82 @@ print("=" * 60)
 
 
 # ============================================================
-# 5. GLOBAL MODEL VARIABLES
+# GLOBAL MODEL VARIABLES
 # ============================================================
 
 sensor_model = None
+
 sensor_threshold = 0.5
+
 sensor_features = [
     "Milk_Temperature",
     "Milk_Conductivity",
     "Milk_Yield"
 ]
 
+# Image model is deliberately NOT loaded during startup.
+
 image_model = None
 image_model_error = None
+image_transform = None
 
 
 # ============================================================
-# 6. LOAD SENSOR MODEL (.pkl)
+# LOAD SENSOR MODEL (.pkl)
 # ============================================================
 
 print("\nLoading Sensor Model...")
 
 try:
 
-    if not os.path.exists(SENSOR_MODEL_PATH):
+    if not os.path.exists(
+        SENSOR_MODEL_PATH
+    ):
+
         raise FileNotFoundError(
-            f"Sensor model not found:\n{SENSOR_MODEL_PATH}"
+            f"Sensor model not found:\n"
+            f"{SENSOR_MODEL_PATH}"
         )
 
-    sensor_package = joblib.load(SENSOR_MODEL_PATH)
+    sensor_package = joblib.load(
+        SENSOR_MODEL_PATH
+    )
 
-    print("Sensor model file loaded.")
+    print(
+        "Sensor model file loaded."
+    )
 
     # --------------------------------------------------------
     # Case 1: saved package
     # --------------------------------------------------------
 
-    if isinstance(sensor_package, dict):
+    if isinstance(
+        sensor_package,
+        dict
+    ):
 
-        sensor_model = sensor_package.get("model")
-
-        sensor_threshold = sensor_package.get(
-            "threshold",
-            0.5
+        sensor_model = (
+            sensor_package.get(
+                "model"
+            )
         )
 
-        sensor_features = sensor_package.get(
-            "features",
-            [
-                "Milk_Temperature",
-                "Milk_Conductivity",
-                "Milk_Yield"
-            ]
+        sensor_threshold = (
+            sensor_package.get(
+                "threshold",
+                0.5
+            )
+        )
+
+        sensor_features = (
+            sensor_package.get(
+                "features",
+                [
+                    "Milk_Temperature",
+                    "Milk_Conductivity",
+                    "Milk_Yield"
+                ]
+            )
         )
 
     # --------------------------------------------------------
@@ -464,257 +716,340 @@ try:
         sensor_model = sensor_package
 
     if sensor_model is None:
+
         raise ValueError(
-            "Sensor model object was not found inside mastitis_model.pkl"
+            "Sensor model object was not "
+            "found inside mastitis_model.pkl"
         )
 
-    print("Sensor model loaded successfully.")
-    print("Sensor features:", sensor_features)
-    print("Sensor threshold:", sensor_threshold)
+    print(
+        "Sensor model loaded successfully."
+    )
+
+    print(
+        "Sensor features:",
+        sensor_features
+    )
+
+    print(
+        "Sensor threshold:",
+        sensor_threshold
+    )
 
 except Exception as e:
 
-    print("ERROR loading sensor model:")
+    print(
+        "ERROR loading sensor model:"
+    )
+
     print(str(e))
 
     sensor_model = None
 
 
 # ============================================================
-# 7. IMAGE MODEL ARCHITECTURE
+# LAZY IMAGE MODEL LOADING
 # ============================================================
 
-def create_image_model():
+def load_image_model():
 
-    print("\nCreating MobileNetV2 image model...")
+    global image_model
+    global image_model_error
+    global image_transform
 
-    model = models.mobilenet_v2(weights=None)
+    # Already loaded.
 
-    # --------------------------------------------------------
-    # Two classes:
-    # 0 = Healthy
-    # 1 = Mastitis
-    # --------------------------------------------------------
+    if image_model is not None:
 
-    model.classifier[1] = nn.Linear(
-        model.last_channel,
-        2
-    )
+        return image_model
 
-    return model
+    try:
 
+        # Import PyTorch only when image prediction is needed.
 
-# ============================================================
-# 8. LOAD IMAGE MODEL (.pth)
-# ============================================================
+        import torch
+        import torch.nn as nn
 
-print("\nLoading Image Model...")
-
-try:
-
-    if not os.path.exists(IMAGE_MODEL_PATH):
-
-        raise FileNotFoundError(
-            f"Image model not found:\n{IMAGE_MODEL_PATH}"
+        from torchvision import (
+            models,
+            transforms
         )
 
-    print("Image model file found:")
-    print(IMAGE_MODEL_PATH)
+        # Keep CPU usage low on Render Free.
 
-    # --------------------------------------------------------
-    # Create architecture
-    # --------------------------------------------------------
+        torch.set_num_threads(1)
 
-    image_model = create_image_model()
+        print(
+            "\nLoading Image Model on demand..."
+        )
 
-    # --------------------------------------------------------
-    # Load .pth
-    #
-    # weights_only=False allows loading checkpoints saved
-    # as complete PyTorch objects/dictionaries.
-    # --------------------------------------------------------
+        if not os.path.exists(
+            IMAGE_MODEL_PATH
+        ):
 
-    checkpoint = torch.load(
-        IMAGE_MODEL_PATH,
-        map_location=DEVICE,
-        weights_only=False
-    )
+            raise FileNotFoundError(
+                f"Image model not found:\n"
+                f"{IMAGE_MODEL_PATH}"
+            )
 
-    print("Checkpoint loaded.")
-    print("Checkpoint type:", type(checkpoint))
+        print(
+            "Image model file found:"
+        )
 
-    # ========================================================
-    # CASE 1:
-    # Direct state_dict
-    # ========================================================
-
-    if isinstance(checkpoint, dict):
-
-        state_dict = None
+        print(
+            IMAGE_MODEL_PATH
+        )
 
         # ----------------------------------------------------
-        # Common checkpoint formats
+        # Create MobileNetV2
         # ----------------------------------------------------
 
-        if "state_dict" in checkpoint:
+        print(
+            "Creating MobileNetV2 image model..."
+        )
 
-            state_dict = checkpoint["state_dict"]
+        model = models.mobilenet_v2(
+            weights=None
+        )
 
-            print("Found key: state_dict")
+        model.classifier[1] = nn.Linear(
+            model.last_channel,
+            2
+        )
 
-        elif "model_state_dict" in checkpoint:
+        # ----------------------------------------------------
+        # Load checkpoint
+        # ----------------------------------------------------
 
-            state_dict = checkpoint["model_state_dict"]
+        print(
+            "Loading image checkpoint..."
+        )
 
-            print("Found key: model_state_dict")
+        checkpoint = torch.load(
+            IMAGE_MODEL_PATH,
+            map_location="cpu",
+            weights_only=False
+        )
 
-        elif "model" in checkpoint:
+        print(
+            "Checkpoint loaded."
+        )
 
-            possible_model = checkpoint["model"]
+        print(
+            "Checkpoint type:",
+            type(checkpoint)
+        )
 
-            if isinstance(
-                possible_model,
-                dict
+        # ====================================================
+        # CASE 1: checkpoint dictionary
+        # ====================================================
+
+        if isinstance(
+            checkpoint,
+            dict
+        ):
+
+            state_dict = None
+
+            # ------------------------------------------------
+            # Common checkpoint formats
+            # ------------------------------------------------
+
+            if "state_dict" in checkpoint:
+
+                state_dict = (
+                    checkpoint["state_dict"]
+                )
+
+                print(
+                    "Found key: state_dict"
+                )
+
+            elif "model_state_dict" in checkpoint:
+
+                state_dict = (
+                    checkpoint[
+                        "model_state_dict"
+                    ]
+                )
+
+                print(
+                    "Found key: model_state_dict"
+                )
+
+            elif "model" in checkpoint:
+
+                possible_model = (
+                    checkpoint["model"]
+                )
+
+                if isinstance(
+                    possible_model,
+                    dict
+                ):
+
+                    state_dict = (
+                        possible_model
+                    )
+
+                    print(
+                        "Found key: model"
+                    )
+
+            # ------------------------------------------------
+            # Assume checkpoint itself is state_dict
+            # ------------------------------------------------
+
+            if state_dict is None:
+
+                state_dict = checkpoint
+
+                print(
+                    "Using checkpoint directly "
+                    "as state_dict."
+                )
+
+            # ------------------------------------------------
+            # Remove DataParallel prefix
+            # ------------------------------------------------
+
+            cleaned_state_dict = {}
+
+            for key, value in (
+                state_dict.items()
             ):
 
-                state_dict = possible_model
+                if key.startswith(
+                    "module."
+                ):
 
-                print("Found key: model")
+                    new_key = key.replace(
+                        "module.",
+                        "",
+                        1
+                    )
 
-        # ----------------------------------------------------
-        # If none of the above exists, assume checkpoint
-        # itself is a state_dict.
-        # ----------------------------------------------------
+                else:
 
-        if state_dict is None:
+                    new_key = key
 
-            state_dict = checkpoint
+                cleaned_state_dict[
+                    new_key
+                ] = value
+
+            state_dict = (
+                cleaned_state_dict
+            )
+
+            # ------------------------------------------------
+            # Load weights
+            # ------------------------------------------------
+
+            model.load_state_dict(
+                state_dict,
+                strict=True
+            )
 
             print(
-                "Using checkpoint directly as state_dict."
+                "Image model weights loaded."
+            )
+
+        # ====================================================
+        # CASE 2: complete PyTorch model
+        # ====================================================
+
+        elif isinstance(
+            checkpoint,
+            nn.Module
+        ):
+
+            model = checkpoint
+
+            print(
+                "Complete PyTorch model loaded."
+            )
+
+        else:
+
+            raise ValueError(
+                "Unsupported .pth file format."
             )
 
         # ----------------------------------------------------
-        # Remove DataParallel "module." prefix
+        # CPU only
         # ----------------------------------------------------
 
-        cleaned_state_dict = {}
+        model = model.to("cpu")
 
-        for key, value in state_dict.items():
+        model.eval()
 
-            if key.startswith("module."):
+        # ----------------------------------------------------
+        # Image preprocessing
+        # ----------------------------------------------------
 
-                new_key = key.replace(
-                    "module.",
-                    "",
-                    1
+        image_transform = transforms.Compose(
+            [
+                transforms.Resize(
+                    (224, 224)
+                ),
+
+                transforms.ToTensor(),
+
+                transforms.Normalize(
+                    mean=[
+                        0.485,
+                        0.456,
+                        0.406
+                    ],
+
+                    std=[
+                        0.229,
+                        0.224,
+                        0.225
+                    ]
                 )
-
-            else:
-
-                new_key = key
-
-            cleaned_state_dict[new_key] = value
-
-        state_dict = cleaned_state_dict
-
-        # ----------------------------------------------------
-        # Load weights
-        # ----------------------------------------------------
-
-        image_model.load_state_dict(
-            state_dict,
-            strict=True
-        )
-
-        print("Image model weights loaded.")
-
-    # ========================================================
-    # CASE 2:
-    # Complete PyTorch model
-    # ========================================================
-
-    elif isinstance(
-        checkpoint,
-        nn.Module
-    ):
-
-        image_model = checkpoint
-
-        print(
-            "Complete PyTorch model loaded."
-        )
-
-    else:
-
-        raise ValueError(
-            "Unsupported .pth file format."
-        )
-
-    # --------------------------------------------------------
-    # Move model to CPU/GPU
-    # --------------------------------------------------------
-
-    image_model = image_model.to(DEVICE)
-
-    image_model.eval()
-
-    image_model_error = None
-
-    print("=" * 60)
-    print("IMAGE MODEL LOADED SUCCESSFULLY")
-    print("=" * 60)
-
-except Exception as e:
-
-    image_model = None
-
-    image_model_error = str(e)
-
-    print("=" * 60)
-    print("ERROR LOADING IMAGE MODEL")
-    print("=" * 60)
-
-    print(str(e))
-
-    print("\nFull traceback:")
-
-    traceback.print_exc()
-
-    print("=" * 60)
-
-
-# ============================================================
-# 9. IMAGE PREPROCESSING
-# ============================================================
-
-image_transform = transforms.Compose(
-    [
-        transforms.Resize(
-            (224, 224)
-        ),
-
-        transforms.ToTensor(),
-
-        transforms.Normalize(
-            mean=[
-                0.485,
-                0.456,
-                0.406
-            ],
-
-            std=[
-                0.229,
-                0.224,
-                0.225
             ]
         )
-    ]
-)
+
+        image_model = model
+
+        image_model_error = None
+
+        print("=" * 60)
+        print(
+            "IMAGE MODEL LOADED SUCCESSFULLY"
+        )
+        print("=" * 60)
+
+        return image_model
+
+    except Exception as e:
+
+        image_model = None
+
+        image_model_error = str(e)
+
+        print("=" * 60)
+        print(
+            "ERROR LOADING IMAGE MODEL"
+        )
+        print("=" * 60)
+
+        print(str(e))
+
+        print(
+            "\nFull traceback:"
+        )
+
+        traceback.print_exc()
+
+        print("=" * 60)
+
+        return None
 
 
 # ============================================================
-# 10. IMAGE CLASS NAMES
+# IMAGE CLASS NAMES
 # ============================================================
 
 IMAGE_CLASSES = [
@@ -724,7 +1059,7 @@ IMAGE_CLASSES = [
 
 
 # ============================================================
-# 11. SENSOR REQUEST MODELS & ESP32 TELEMETRY
+# SENSOR REQUEST MODELS & ESP32 TELEMETRY
 # ============================================================
 
 class SensorData(BaseModel):
@@ -737,95 +1072,196 @@ class SensorData(BaseModel):
 
 
 class ESP32SensorPushData(BaseModel):
-    """Telemetry pushed directly from the ESP32 to FastAPI."""
+
+    """Telemetry pushed directly from the ESP32."""
 
     temperature: float
+
     tds: float
+
     voltage: float = 0.0
 
 
-# Latest telemetry received from the ESP32.
-# The ESP32 pushes data to this backend; the website reads it through
-# /api/esp32-live. No ESP32 private/local IP is required here.
+# Latest telemetry received from ESP32.
+
 latest_sensor_data = None
 
 
+# ============================================================
+# ESP32 SENSOR PUSH
+# ============================================================
+
 @app.post("/api/esp32/sensor")
-def receive_esp32_sensor_data(data: ESP32SensorPushData):
-    """Receive live sensor telemetry from the ESP32 over HTTP/HTTPS."""
+def receive_esp32_sensor_data(
+    data: ESP32SensorPushData
+):
+
+    """Receive live sensor telemetry from ESP32."""
+
     global latest_sensor_data
 
-    temperature = float(data.temperature)
-    tds_ppm = float(data.tds)
-    voltage = float(data.voltage)
-    conductivity = tds_ppm / 500.0
+    temperature = float(
+        data.temperature
+    )
+
+    tds_ppm = float(
+        data.tds
+    )
+
+    voltage = float(
+        data.voltage
+    )
+
+    conductivity = (
+        tds_ppm / 500.0
+    )
 
     latest_sensor_data = {
-        "Milk_Temperature": round(temperature, 2),
-        "TDS_PPM": round(tds_ppm, 2),
-        "TDS_Voltage": round(voltage, 4),
-        "Milk_Conductivity": round(conductivity, 4),
-        "timestamp": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
+
+        "Milk_Temperature":
+            round(
+                temperature,
+                2
+            ),
+
+        "TDS_PPM":
+            round(
+                tds_ppm,
+                2
+            ),
+
+        "TDS_Voltage":
+            round(
+                voltage,
+                4
+            ),
+
+        "Milk_Conductivity":
+            round(
+                conductivity,
+                4
+            ),
+
+        "timestamp":
+            __import__(
+                "datetime"
+            ).datetime.now(
+                __import__(
+                    "datetime"
+                ).timezone.utc
+            ).isoformat(),
     }
 
     return {
+
         "success": True,
-        "message": "ESP32 sensor data received successfully.",
-        "data": latest_sensor_data,
+
+        "message":
+            "ESP32 sensor data received successfully.",
+
+        "data":
+            latest_sensor_data,
     }
 
+
+# ============================================================
+# ESP32 LIVE DATA
+# ============================================================
 
 @app.get("/api/esp32-live")
 def get_esp32_live():
-    """Return the latest telemetry pushed by the ESP32.
 
-    The browser never connects directly to the ESP32. This makes the
-    system work even when the ESP32 receives a different private IP on
-    another Wi-Fi network.
-    """
+    """Return latest telemetry pushed by ESP32."""
+
     if latest_sensor_data is None:
+
         raise HTTPException(
             status_code=404,
-            detail="No ESP32 sensor data received yet. Power the ESP32 and connect it to the backend.",
+            detail=(
+                "No ESP32 sensor data received yet. "
+                "Power the ESP32 and connect it to the backend."
+            )
         )
 
     return {
+
         "success": True,
+
         **latest_sensor_data,
     }
 
 
+# ============================================================
+# LEGACY SENSOR DATA
+# ============================================================
+
 @app.post("/api/sensor-data")
-def receive_sensor_data(data: SensorData):
-    """Legacy sensor-store endpoint kept for existing frontend compatibility."""
+def receive_sensor_data(
+    data: SensorData
+):
+
+    """Legacy sensor-store endpoint."""
+
     global latest_sensor_data
 
     latest_sensor_data = {
-        "Milk_Temperature": round(data.Milk_Temperature, 2),
-        "Milk_Conductivity": round(data.Milk_Conductivity, 4),
-        "Milk_Yield": data.Milk_Yield,
-        "TDS_PPM": round(data.Milk_Conductivity * 500, 2),
-        "TDS_Voltage": 0.0,
+
+        "Milk_Temperature":
+            round(
+                data.Milk_Temperature,
+                2
+            ),
+
+        "Milk_Conductivity":
+            round(
+                data.Milk_Conductivity,
+                4
+            ),
+
+        "Milk_Yield":
+            data.Milk_Yield,
+
+        "TDS_PPM":
+            round(
+                data.Milk_Conductivity * 500,
+                2
+            ),
+
+        "TDS_Voltage":
+            0.0,
     }
 
     return {
+
         "success": True,
-        "message": "Sensor data received successfully.",
-        "data": latest_sensor_data,
+
+        "message":
+            "Sensor data received successfully.",
+
+        "data":
+            latest_sensor_data,
     }
 
 
 @app.get("/api/sensor-data")
 def get_sensor_data():
-    """Return the latest sensor telemetry."""
+
+    """Return latest sensor telemetry."""
+
     if latest_sensor_data is None:
+
         raise HTTPException(
             status_code=404,
-            detail="No sensor data received yet. Send data from the ESP32 first.",
+            detail=(
+                "No sensor data received yet. "
+                "Send data from the ESP32 first."
+            )
         )
 
     return {
+
         "success": True,
+
         **latest_sensor_data,
     }
 
@@ -835,45 +1271,77 @@ def get_sensor_data():
 # ============================================================
 
 class FarmerSyncData(BaseModel):
+
     name: str
+
     identifier: str
+
     farm_name: str = ""
 
 
 class CattleSyncData(BaseModel):
+
     farmer_id: int
+
     cow_id: str
+
     type: str = "Other"
+
     breed: str = ""
+
     age: float | None = None
+
     history: str = ""
 
 
 class SensorPredictionSaveData(BaseModel):
+
     farmer_id: int
+
     cow_id: str
+
     Milk_Temperature: float
+
     Milk_Conductivity: float
+
     Milk_Yield: float
+
     prediction: str
+
     probability: float
+
     model_name: str = "sensor_random_forest"
 
 
 class ImagePredictionSaveData(BaseModel):
+
     farmer_id: int
+
     cow_id: str
+
     image_url: str = "teat-image.jpg"
+
     prediction: str
+
     probability: float
+
     model_name: str = "mastitis_image_model"
 
 
 @app.post("/api/supabase/farmer/ensure")
-def sync_farmer(data: FarmerSyncData, auth=Depends(require_supabase_user)):
+def sync_farmer(
+    data: FarmerSyncData,
+    auth=Depends(require_supabase_user)
+):
+
     try:
+
         user = auth["user"]
-        auth_email = auth_user_email(user)
+
+        auth_email = auth_user_email(
+            user
+        )
+
         farmer_id = ensure_supabase_farmer(
             data.name,
             data.identifier,
@@ -882,42 +1350,120 @@ def sync_farmer(data: FarmerSyncData, auth=Depends(require_supabase_user)):
             access_token=auth["token"],
             auth_email=auth_email,
         )
-        return {"success": True, "farmer_id": farmer_id}
+
+        return {
+
+            "success": True,
+
+            "farmer_id":
+                farmer_id
+        }
+
     except HTTPException:
+
         raise
+
     except Exception as e:
-        print("\n========== SUPABASE FARMER ERROR ==========")
-        print(str(e))
+
+        print(
+            "\n========== SUPABASE FARMER ERROR =========="
+        )
+
+        print(
+            str(e)
+        )
+
         traceback.print_exc()
-        print("============================================\n")
-        raise HTTPException(status_code=502, detail=str(e))
+
+        print(
+            "============================================\n"
+        )
+
+        raise HTTPException(
+            status_code=502,
+            detail=str(e)
+        )
 
 
-@app.get("/api/supabase/cattle/{farmer_id}")
-def list_supabase_cattle(farmer_id: int, auth=Depends(require_supabase_user)):
+@app.get(
+    "/api/supabase/cattle/{farmer_id}"
+)
+def list_supabase_cattle(
+    farmer_id: int,
+    auth=Depends(require_supabase_user)
+):
+
     try:
-        rows = get_supabase_cattle(farmer_id, auth["token"])
-        return {"success": True, "cattle": rows}
+
+        rows = get_supabase_cattle(
+            farmer_id,
+            auth["token"]
+        )
+
+        return {
+
+            "success": True,
+
+            "cattle":
+                rows
+        }
+
     except HTTPException:
+
         raise
+
     except Exception as e:
-        raise HTTPException(status_code=502, detail=str(e))
+
+        raise HTTPException(
+            status_code=502,
+            detail=str(e)
+        )
 
 
 @app.post("/api/supabase/cattle")
-def sync_cattle(data: CattleSyncData, auth=Depends(require_supabase_user)):
+def sync_cattle(
+    data: CattleSyncData,
+    auth=Depends(require_supabase_user)
+):
+
     try:
-        row = upsert_supabase_cattle(data.farmer_id, data.model_dump(), auth["token"])
-        return {"success": True, "cattle": row}
+
+        row = upsert_supabase_cattle(
+            data.farmer_id,
+            data.model_dump(),
+            auth["token"]
+        )
+
+        return {
+
+            "success": True,
+
+            "cattle":
+                row
+        }
+
     except HTTPException:
+
         raise
+
     except Exception as e:
-        raise HTTPException(status_code=502, detail=str(e))
+
+        raise HTTPException(
+            status_code=502,
+            detail=str(e)
+        )
 
 
-@app.post("/api/supabase/sensor-prediction")
-def sync_sensor_prediction(data: SensorPredictionSaveData, auth=Depends(require_supabase_user)):
+@app.post(
+    "/api/supabase/sensor-prediction"
+)
+def sync_sensor_prediction(
+    data: SensorPredictionSaveData,
+    auth=Depends(require_supabase_user)
+):
+
     try:
+
         saved = save_sensor_and_prediction(
             data.farmer_id,
             data.cow_id,
@@ -929,16 +1475,36 @@ def sync_sensor_prediction(data: SensorPredictionSaveData, auth=Depends(require_
             data.model_name,
             auth["token"],
         )
-        return {"success": True, **saved}
+
+        return {
+
+            "success": True,
+
+            **saved
+        }
+
     except HTTPException:
+
         raise
+
     except Exception as e:
-        raise HTTPException(status_code=502, detail=str(e))
+
+        raise HTTPException(
+            status_code=502,
+            detail=str(e)
+        )
 
 
-@app.post("/api/supabase/image-prediction")
-def sync_image_prediction(data: ImagePredictionSaveData, auth=Depends(require_supabase_user)):
+@app.post(
+    "/api/supabase/image-prediction"
+)
+def sync_image_prediction(
+    data: ImagePredictionSaveData,
+    auth=Depends(require_supabase_user)
+):
+
     try:
+
         row = save_image_prediction(
             data.farmer_id,
             data.cow_id,
@@ -948,15 +1514,29 @@ def sync_image_prediction(data: ImagePredictionSaveData, auth=Depends(require_su
             data.model_name,
             auth["token"],
         )
-        return {"success": True, "image_prediction": row}
+
+        return {
+
+            "success": True,
+
+            "image_prediction":
+                row
+        }
+
     except HTTPException:
+
         raise
+
     except Exception as e:
-        raise HTTPException(status_code=502, detail=str(e))
+
+        raise HTTPException(
+            status_code=502,
+            detail=str(e)
+        )
 
 
 # ============================================================
-# 12. COMBINED REQUEST MODEL
+# COMBINED REQUEST MODEL
 # ============================================================
 
 class CombinedSensorData(BaseModel):
@@ -969,7 +1549,7 @@ class CombinedSensorData(BaseModel):
 
 
 # ============================================================
-# 13. ROOT ENDPOINT
+# ROOT ENDPOINT
 # ============================================================
 
 @app.get("/")
@@ -1012,7 +1592,7 @@ def root():
 
 
 # ============================================================
-# 14. HEALTH ENDPOINT
+# HEALTH ENDPOINT
 # ============================================================
 
 @app.get("/api/health")
@@ -1020,7 +1600,8 @@ def health():
 
     return {
 
-        "status": "running",
+        "status":
+            "running",
 
         "sensor_model_loaded":
             sensor_model is not None,
@@ -1043,15 +1624,13 @@ def health():
 
 
 # ============================================================
-# 15. SENSOR PREDICTION
+# SENSOR PREDICTION
 # ============================================================
 
 @app.post("/api/predict")
-def predict_sensor(data: SensorData):
-
-    # --------------------------------------------------------
-    # Check model
-    # --------------------------------------------------------
+def predict_sensor(
+    data: SensorData
+):
 
     if sensor_model is None:
 
@@ -1062,10 +1641,6 @@ def predict_sensor(data: SensorData):
 
     try:
 
-        # ----------------------------------------------------
-        # Prepare input
-        # ----------------------------------------------------
-
         input_data = np.array(
             [[
                 data.Milk_Temperature,
@@ -1075,20 +1650,17 @@ def predict_sensor(data: SensorData):
             dtype=float
         )
 
-        # ----------------------------------------------------
-        # Prediction probability
-        # ----------------------------------------------------
-
         if hasattr(
             sensor_model,
             "predict_proba"
         ):
 
-            probabilities = sensor_model.predict_proba(
-                input_data
-            )[0]
+            probabilities = (
+                sensor_model.predict_proba(
+                    input_data
+                )[0]
+            )
 
-            # Probability of class 1
             probability = float(
                 probabilities[1]
             )
@@ -1105,17 +1677,9 @@ def predict_sensor(data: SensorData):
                 prediction
             )
 
-        # ----------------------------------------------------
-        # Apply saved threshold
-        # ----------------------------------------------------
-
         prediction = int(
             probability >= sensor_threshold
         )
-
-        # ----------------------------------------------------
-        # Result
-        # ----------------------------------------------------
 
         if prediction == 1:
 
@@ -1172,7 +1736,7 @@ def predict_sensor(data: SensorData):
 
 
 # ============================================================
-# 16. IMAGE PREDICTION
+# IMAGE PREDICTION
 # ============================================================
 
 @app.post("/api/predict-image")
@@ -1181,16 +1745,18 @@ async def predict_image(
 ):
 
     # --------------------------------------------------------
-    # Check image model
+    # Load image model only when needed.
     # --------------------------------------------------------
 
-    if image_model is None:
+    model = load_image_model()
+
+    if model is None:
 
         raise HTTPException(
             status_code=500,
             detail={
                 "message":
-                    "Image model is not loaded.",
+                    "Image model could not be loaded.",
 
                 "error":
                     image_model_error
@@ -1198,6 +1764,10 @@ async def predict_image(
         )
 
     try:
+
+        # Import PyTorch only for image prediction.
+
+        import torch
 
         # ----------------------------------------------------
         # Read image
@@ -1222,33 +1792,27 @@ async def predict_image(
         )
 
         # ----------------------------------------------------
-        # Convert to RGB
+        # Convert RGB
         # ----------------------------------------------------
 
-        image = image.convert("RGB")
+        image = image.convert(
+            "RGB"
+        )
 
         # ----------------------------------------------------
-        # Transform image
+        # Transform
         # ----------------------------------------------------
 
         image_tensor = image_transform(
             image
         )
 
-        # ----------------------------------------------------
-        # Add batch dimension
-        # ----------------------------------------------------
-
-        image_tensor = image_tensor.unsqueeze(
-            0
+        image_tensor = (
+            image_tensor.unsqueeze(0)
         )
 
-        # ----------------------------------------------------
-        # Move to device
-        # ----------------------------------------------------
-
-        image_tensor = image_tensor.to(
-            DEVICE
+        image_tensor = (
+            image_tensor.to("cpu")
         )
 
         # ----------------------------------------------------
@@ -1257,13 +1821,15 @@ async def predict_image(
 
         with torch.no_grad():
 
-            outputs = image_model(
+            outputs = model(
                 image_tensor
             )
 
-            probabilities = torch.softmax(
-                outputs,
-                dim=1
+            probabilities = (
+                torch.softmax(
+                    outputs,
+                    dim=1
+                )
             )
 
             probability_values = (
@@ -1330,7 +1896,9 @@ async def predict_image(
 
     except Exception as e:
 
-        print("Image prediction error:")
+        print(
+            "Image prediction error:"
+        )
 
         traceback.print_exc()
 
@@ -1341,7 +1909,7 @@ async def predict_image(
 
 
 # ============================================================
-# 17. COMBINED PREDICTION
+# COMBINED PREDICTION
 # ============================================================
 
 @app.post("/api/predict-combined")
@@ -1367,13 +1935,15 @@ async def predict_combined(
     # IMAGE MODEL
     # --------------------------------------------------------
 
-    if image_model is None:
+    model = load_image_model()
+
+    if model is None:
 
         raise HTTPException(
             status_code=500,
             detail={
                 "message":
-                    "Image model is not loaded.",
+                    "Image model could not be loaded.",
 
                 "error":
                     image_model_error
@@ -1381,6 +1951,10 @@ async def predict_combined(
         )
 
     try:
+
+        # Import PyTorch only when needed.
+
+        import torch
 
         # ====================================================
         # SENSOR PREDICTION
@@ -1424,35 +1998,45 @@ async def predict_combined(
 
         image_bytes = await file.read()
 
+        if not image_bytes:
+
+            raise ValueError(
+                "Uploaded image is empty."
+            )
+
         image = Image.open(
             __import__("io").BytesIO(
                 image_bytes
             )
         )
 
-        image = image.convert("RGB")
+        image = image.convert(
+            "RGB"
+        )
 
         image_tensor = image_transform(
             image
         )
 
-        image_tensor = image_tensor.unsqueeze(
-            0
+        image_tensor = (
+            image_tensor.unsqueeze(0)
         )
 
-        image_tensor = image_tensor.to(
-            DEVICE
+        image_tensor = (
+            image_tensor.to("cpu")
         )
 
         with torch.no_grad():
 
-            outputs = image_model(
+            outputs = model(
                 image_tensor
             )
 
-            probabilities = torch.softmax(
-                outputs,
-                dim=1
+            probabilities = (
+                torch.softmax(
+                    outputs,
+                    dim=1
+                )
             )
 
             image_probability_values = (
@@ -1480,10 +2064,6 @@ async def predict_combined(
         # ====================================================
         # COMBINED RESULT
         # ====================================================
-
-        # ----------------------------------------------------
-        # If either model detects mastitis, flag for attention.
-        # ----------------------------------------------------
 
         if (
             sensor_prediction == 1
@@ -1560,7 +2140,9 @@ async def predict_combined(
 
     except Exception as e:
 
-        print("Combined prediction error:")
+        print(
+            "Combined prediction error:"
+        )
 
         traceback.print_exc()
 
@@ -1571,7 +2153,7 @@ async def predict_combined(
 
 
 # ============================================================
-# 18. SERVER START MESSAGE
+# SERVER START MESSAGE
 # ============================================================
 
 if __name__ == "__main__":
@@ -1579,14 +2161,31 @@ if __name__ == "__main__":
     import uvicorn
 
     print("\n")
+
     print("=" * 60)
-    print("Starting VETRONIX API")
+
+    print(
+        "Starting VETRONIX API"
+    )
+
     print("=" * 60)
+
     print("Open:")
-    print("http://127.0.0.1:8000")
+
+    print(
+        "http://127.0.0.1:8000"
+    )
+
     print()
-    print("Swagger documentation:")
-    print("http://127.0.0.1:8000/docs")
+
+    print(
+        "Swagger documentation:"
+    )
+
+    print(
+        "http://127.0.0.1:8000/docs"
+    )
+
     print("=" * 60)
 
     uvicorn.run(
