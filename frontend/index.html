@@ -653,7 +653,7 @@
                   <span class="source-badge">DS18B20 / Manual</span>
                 </div>
                 <div class="input-unit-wrap">
-                  <input type="number" id="m1Temp" step="0.1" min="30" max="45" placeholder="e.g. 38.6" required>
+                  <input type="number" id="m1Temp" step="0.1" min="0" max="45" placeholder="e.g. 38.6" required oninput="markManualSensorInput('temperature')">
                   <span class="unit-text">°C</span>
                 </div>
                 <small class="field-hint">Normal range: 38.0°C - 39.2°C</small>
@@ -666,7 +666,7 @@
                   <span class="source-badge">TDS Meter 1.0 / Manual</span>
                 </div>
                 <div class="input-unit-wrap">
-                  <input type="number" id="m1TdsPpm" step="1" min="100" max="4000" placeholder="e.g. 2500" required oninput="recalculateConductivity(this.value)">
+                  <input type="number" id="m1TdsPpm" step="1" min="0" max="4000" placeholder="e.g. 2500" required>
                   <span class="unit-text">ppm</span>
                 </div>
                 <small class="field-hint">Measured by TDS Meter 1.0</small>

@@ -375,6 +375,22 @@ let simulatedOtp = null;
 let currentTeatImageBase64 = null;
 let currentModel1Result = null;
 let currentModel2Result = null;
+// Keep manually entered sensor values from being overwritten
+// by the background ESP32 polling.
+let manualSensorOverride = {
+  temperature: false,
+  tds: false
+};
+
+function markManualSensorInput(type) {
+  if (type === 'temperature') {
+    manualSensorOverride.temperature = true;
+  }
+
+  if (type === 'tds') {
+    manualSensorOverride.tds = true;
+  }
+}
 
 // Preset sample real images for simulated ESP32-CAM capture
 const SAMPLE_TEAT_IMAGES = {
@@ -428,6 +444,18 @@ window.addEventListener('DOMContentLoaded', async () => {
   loginIdField?.addEventListener('input', updatePhoneOtpUi);
   signupIdField?.addEventListener('input', updatePhoneOtpUi);
   updatePhoneOtpUi();
+  // Preserve manual Model 1 sensor entries while background ESP32 polling runs.
+const model1TempField = document.getElementById('m1Temp');
+const model1TdsField = document.getElementById('m1TdsPpm');
+
+model1TempField?.addEventListener('input', () => {
+  markManualSensorInput('temperature');
+});
+
+model1TdsField?.addEventListener('input', (event) => {
+  markManualSensorInput('tds');
+  recalculateConductivity(event.target.value);
+});
 
   let restoredDemo = false;
   try {
@@ -1186,11 +1214,13 @@ function populateCattleDetailsInModel1(cattleId) {
 
   // Pre-fill last known values or standard baseline
   if (!document.getElementById('m1Temp').value) {
-    document.getElementById('m1Temp').value = cattle.lastTemp || '38.6';
+    document.getElementById('m1Temp').value = Number(cattle.lastTemp || 38.6).toFixed(1);
   }
   if (!document.getElementById('m1TdsPpm').value) {
-    const defaultPpm = (cattle.lastCond ? cattle.lastCond * 500 : 2500);
-    document.getElementById('m1TdsPpm').value = defaultPpm;
+    const defaultPpm =  Math.round(
+    cattle.lastCond ? cattle.lastCond * 500 : 2500
+  );
+    document.getElementById('m1TdsPpm').value = defaultPpm.toString();
     recalculateConductivity(defaultPpm);
   }
   if (!document.getElementById('m1Yield').value) {
@@ -1225,6 +1255,14 @@ function recalculateConductivity(ppmVal) {
  * Fetch from ESP32 Sensor (Simulation with realistic ADC sensor telemetry)
  */
 async function fetchLiveESP32Sensors(silent = false) {
+
+  // Manual Fetch button switches back to live ESP32 values.
+  // Background polling does not remove manual input.
+  if (!silent) {
+    manualSensorOverride.temperature = false;
+    manualSensorOverride.tds = false;
+  }
+
   const btn = document.querySelector('#model1Form button[onclick^="fetchLiveESP32Sensors"]');
   const originalHtml = btn ? btn.innerHTML : '';
   if (btn && !silent) {
@@ -1257,9 +1295,24 @@ async function fetchLiveESP32Sensors(silent = false) {
     }
 
     // Update the existing UI fields only. No HTML/CSS changes are made.
-    document.getElementById('m1Temp').value = temp.toFixed(2);
-    document.getElementById('m1TdsPpm').value = ppm.toFixed(2);
-    recalculateConductivity(ppm);
+    const tempField = document.getElementById('m1Temp');
+const tdsField = document.getElementById('m1TdsPpm');
+
+// Keep manual values while background ESP32 polling continues.
+if (tempField && !manualSensorOverride.temperature) {
+  tempField.value = temp.toFixed(1);
+}
+
+if (tdsField && !manualSensorOverride.tds) {
+  tdsField.value = Math.round(ppm).toString();
+}
+
+// Conductivity follows the value currently shown in TDS.
+const displayedTds = parseFloat(tdsField?.value);
+
+recalculateConductivity(
+  Number.isFinite(displayedTds) ? displayedTds : ppm
+);
 
     // Send the same live values into the existing FastAPI sensor store.
     // Milk yield remains the existing manual field.
