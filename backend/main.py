@@ -31,7 +31,7 @@ from fastapi import (
 
 from fastapi.middleware.cors import CORSMiddleware
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, AliasChoices
 
 from PIL import Image
 
@@ -1058,13 +1058,34 @@ async def predict_combined(
 
 class ESP32SensorData(BaseModel):
 
-    Milk_Temperature: float
+    Milk_Temperature: float = Field(
+        validation_alias=AliasChoices(
+            "Milk_Temperature",
+            "temperature"
+        )
+    )
 
-    TDS_PPM: float
+    TDS_PPM: float = Field(
+        validation_alias=AliasChoices(
+            "TDS_PPM",
+            "tds"
+        )
+    )
 
-    TDS_Voltage: float
+    TDS_Voltage: float = Field(
+        validation_alias=AliasChoices(
+            "TDS_Voltage",
+            "voltage"
+        )
+    )
 
-    Milk_Conductivity: float
+    Milk_Conductivity: float = Field(
+        default=0.0,
+        validation_alias=AliasChoices(
+            "Milk_Conductivity",
+            "conductivity"
+        )
+    )
 
 
 # ============================================================
