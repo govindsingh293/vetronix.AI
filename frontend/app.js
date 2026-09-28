@@ -663,13 +663,15 @@ async function syncFarmerToSupabase(user) {
 
   try {
     const response = await apiFetch(`${API_URL}/api/supabase/farmer/ensure`, {
-      method: 'POST',
-      body: JSON.stringify({
-        name: metadata.name || metadata.full_name || 'Farmer',
-        identifier,
-        farm_name: metadata.farm_name || ''
-      })
-    });
+  method: 'POST',
+  body: JSON.stringify({
+    user_id: user.id,
+    email: user.email || null,
+    mobile: user.phone || metadata.mobile || null,
+    name: metadata.name || metadata.full_name || 'Farmer',
+    farm_address: metadata.farm_name || ''
+  })
+});
 
     const data = await response.json();
     if (!response.ok || !data.success) {
