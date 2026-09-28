@@ -13,6 +13,7 @@
 # ============================================================
 
 import os
+import io
 import traceback
 from datetime import datetime
 from typing import Optional
@@ -26,7 +27,8 @@ from fastapi import (
     FastAPI,
     UploadFile,
     File,
-    HTTPException
+    HTTPException,
+    Body
 )
 
 from fastapi.middleware.cors import CORSMiddleware
@@ -66,7 +68,10 @@ IMAGE_MODEL_PATH = os.path.join(
 
 app = FastAPI(
     title="VETRONIX Smart Dairy Health Assistant API",
-    description="Backend API for VETRONIX mastitis prediction and IoT sensor integration.",
+    description=(
+        "Backend API for VETRONIX mastitis prediction "
+        "and IoT sensor integration."
+    ),
     version="1.0.0"
 )
 
@@ -128,7 +133,7 @@ SUPABASE_URL = os.getenv(
 
 SUPABASE_SERVICE_KEY = os.getenv(
     "SUPABASE_SERVICE_KEY",
-    ""
+    "" 
 )
 
 
@@ -218,9 +223,7 @@ def load_image_model():
                 f"{IMAGE_MODEL_PATH}"
             )
 
-        session_options = (
-            ort.SessionOptions()
-        )
+        session_options = ort.SessionOptions()
 
         session_options.intra_op_num_threads = 1
         session_options.inter_op_num_threads = 1
@@ -229,23 +232,16 @@ def load_image_model():
             ort.GraphOptimizationLevel.ORT_ENABLE_ALL
         )
 
-        image_session = (
-            ort.InferenceSession(
-                IMAGE_MODEL_PATH,
-                sess_options=session_options,
-                providers=[
-                    "CPUExecutionProvider"
-                ]
-            )
+        image_session = ort.InferenceSession(
+            IMAGE_MODEL_PATH,
+            sess_options=session_options,
+            providers=[
+                "CPUExecutionProvider"
+            ]
         )
 
-        inputs = (
-            image_session.get_inputs()
-        )
-
-        outputs = (
-            image_session.get_outputs()
-        )
+        inputs = image_session.get_inputs()
+        outputs = image_session.get_outputs()
 
         if not inputs:
 
@@ -259,13 +255,8 @@ def load_image_model():
                 "ONNX model has no output."
             )
 
-        image_input_name = (
-            inputs[0].name
-        )
-
-        image_output_name = (
-            outputs[0].name
-        )
+        image_input_name = inputs[0].name
+        image_output_name = outputs[0].name
 
         image_model_error = None
 
@@ -318,14 +309,12 @@ def load_image_model():
 
 
 # ============================================================
-# IMAGE PREPROCESSING FOR ONNX MODEL
+# IMAGE PREPROCESSING
 # ============================================================
 
 def preprocess_image(image):
 
-    image = image.convert(
-        "RGB"
-    )
+    image = image.convert("RGB")
 
     image = image.resize(
         (224, 224)
@@ -336,12 +325,10 @@ def preprocess_image(image):
         dtype=np.float32
     )
 
-    image_array = (
-        image_array.transpose(
-            2,
-            0,
-            1
-        )
+    image_array = image_array.transpose(
+        2,
+        0,
+        1
     )
 
     image_array = (
@@ -541,6 +528,9 @@ async def health_check():
         "image_model_error":
             image_model_error,
 
+        "sensor_model_error":
+            sensor_model_error,
+
         "device":
             "cpu",
 
@@ -550,14 +540,43 @@ async def health_check():
 
 
 # ============================================================
+# SENSOR PREDICTION REQUEST MODEL
+# ============================================================
+
+class SensorPredictionRequest(BaseModel):
+
+    Milk_Temperature: float = Field(
+        validation_alias=AliasChoices(
+            "Milk_Temperature",
+            "temperature",
+            "milk_temperature"
+        )
+    )
+
+    Milk_Conductivity: float = Field(
+        validation_alias=AliasChoices(
+            "Milk_Conductivity",
+            "conductivity",
+            "milk_conductivity"
+        )
+    )
+
+    Milk_Yield: float = Field(
+        validation_alias=AliasChoices(
+            "Milk_Yield",
+            "milk_yield",
+            "yield"
+        )
+    )
+
+
+# ============================================================
 # SENSOR PREDICTION MODEL
 # ============================================================
 
 @app.post("/api/predict")
 async def predict_sensor(
-    Milk_Temperature: float,
-    Milk_Conductivity: float,
-    Milk_Yield: float
+    data: SensorPredictionRequest = Body(...)
 ):
 
     model = load_sensor_model()
@@ -579,9 +598,9 @@ async def predict_sensor(
 
         sensor_input = np.array(
             [[
-                Milk_Temperature,
-                Milk_Conductivity,
-                Milk_Yield
+                data.Milk_Temperature,
+                data.Milk_Conductivity,
+                data.Milk_Yield
             ]],
             dtype=float
         )
@@ -592,21 +611,23 @@ async def predict_sensor(
             )[0]
         )
 
+        if len(probabilities) < 2:
+
+            raise ValueError(
+                "Sensor model did not return two class probabilities."
+            )
+
         probability = float(
             probabilities[1]
         )
 
         prediction = int(
-            probability >=
-            sensor_threshold
+            probability >= sensor_threshold
         )
 
         if prediction == 1:
-
             result = "Mastitis"
-
         else:
-
             result = "Healthy"
 
         return {
@@ -634,13 +655,13 @@ async def predict_sensor(
             "input": {
 
                 "Milk_Temperature":
-                    Milk_Temperature,
+                    data.Milk_Temperature,
 
                 "Milk_Conductivity":
-                    Milk_Conductivity,
+                    data.Milk_Conductivity,
 
                 "Milk_Yield":
-                    Milk_Yield
+                    data.Milk_Yield
             }
         }
 
@@ -693,15 +714,13 @@ async def predict_image(
             )
 
         image = Image.open(
-            __import__("io").BytesIO(
+            io.BytesIO(
                 image_bytes
             )
         )
 
-        image_array = (
-            preprocess_image(
-                image
-            )
+        image_array = preprocess_image(
+            image
         )
 
         outputs = session.run(
@@ -742,17 +761,13 @@ async def predict_image(
             ]
         )
 
-        if (
-            predicted_class
-            <
-            len(IMAGE_CLASSES)
+        if predicted_class < len(
+            IMAGE_CLASSES
         ):
 
-            result = (
-                IMAGE_CLASSES[
-                    predicted_class
-                ]
-            )
+            result = IMAGE_CLASSES[
+                predicted_class
+            ]
 
         else:
 
@@ -801,23 +816,59 @@ async def predict_image(
 
 
 # ============================================================
+# COMBINED SENSOR + IMAGE PREDICTION REQUEST
+# ============================================================
+
+class CombinedPredictionRequest(BaseModel):
+
+    Milk_Temperature: float = Field(
+        validation_alias=AliasChoices(
+            "Milk_Temperature",
+            "temperature",
+            "milk_temperature"
+        )
+    )
+
+    Milk_Conductivity: float = Field(
+        validation_alias=AliasChoices(
+            "Milk_Conductivity",
+            "conductivity",
+            "milk_conductivity"
+        )
+    )
+
+    Milk_Yield: float = Field(
+        validation_alias=AliasChoices(
+            "Milk_Yield",
+            "milk_yield",
+            "yield"
+        )
+    )
+
+
+# ============================================================
 # COMBINED SENSOR + IMAGE PREDICTION
 # ============================================================
 
 @app.post("/api/predict-combined")
 async def predict_combined(
-    Milk_Temperature: float,
-    Milk_Conductivity: float,
-    Milk_Yield: float,
+    data: CombinedPredictionRequest = Body(...),
     file: UploadFile = File(...)
 ):
 
-    if sensor_model is None:
+    model = load_sensor_model()
+
+    if model is None:
 
         raise HTTPException(
             status_code=500,
-            detail=
-                "Sensor model is not loaded."
+            detail={
+                "message":
+                    "Sensor model is not loaded.",
+
+                "error":
+                    sensor_model_error
+            }
         )
 
     session = load_image_model()
@@ -843,15 +894,15 @@ async def predict_combined(
 
         sensor_input = np.array(
             [[
-                Milk_Temperature,
-                Milk_Conductivity,
-                Milk_Yield
+                data.Milk_Temperature,
+                data.Milk_Conductivity,
+                data.Milk_Yield
             ]],
             dtype=float
         )
 
         sensor_probabilities = (
-            sensor_model.predict_proba(
+            model.predict_proba(
                 sensor_input
             )[0]
         )
@@ -861,16 +912,12 @@ async def predict_combined(
         )
 
         sensor_prediction = int(
-            sensor_probability >=
-            sensor_threshold
+            sensor_probability >= sensor_threshold
         )
 
         if sensor_prediction == 1:
-
             sensor_result = "Mastitis"
-
         else:
-
             sensor_result = "Healthy"
 
 
@@ -887,15 +934,13 @@ async def predict_combined(
             )
 
         image = Image.open(
-            __import__("io").BytesIO(
+            io.BytesIO(
                 image_bytes
             )
         )
 
-        image_array = (
-            preprocess_image(
-                image
-            )
+        image_array = preprocess_image(
+            image
         )
 
         outputs = session.run(
@@ -936,17 +981,13 @@ async def predict_combined(
             ]
         )
 
-        if (
-            image_prediction
-            <
-            len(IMAGE_CLASSES)
+        if image_prediction < len(
+            IMAGE_CLASSES
         ):
 
-            image_result = (
-                IMAGE_CLASSES[
-                    image_prediction
-                ]
-            )
+            image_result = IMAGE_CLASSES[
+                image_prediction
+            ]
 
         else:
 
@@ -1028,13 +1069,13 @@ async def predict_combined(
             "input": {
 
                 "Milk_Temperature":
-                    Milk_Temperature,
+                    data.Milk_Temperature,
 
                 "Milk_Conductivity":
-                    Milk_Conductivity,
+                    data.Milk_Conductivity,
 
                 "Milk_Yield":
-                    Milk_Yield
+                    data.Milk_Yield
             }
         }
 
@@ -1053,7 +1094,7 @@ async def predict_combined(
 
 
 # ============================================================
-# ESP32 SENSOR DATA
+# ESP32 SENSOR DATA MODEL
 # ============================================================
 
 class ESP32SensorData(BaseModel):
@@ -1061,21 +1102,24 @@ class ESP32SensorData(BaseModel):
     Milk_Temperature: float = Field(
         validation_alias=AliasChoices(
             "Milk_Temperature",
-            "temperature"
+            "temperature",
+            "milk_temperature"
         )
     )
 
     TDS_PPM: float = Field(
         validation_alias=AliasChoices(
             "TDS_PPM",
-            "tds"
+            "tds",
+            "tds_ppm"
         )
     )
 
     TDS_Voltage: float = Field(
         validation_alias=AliasChoices(
             "TDS_Voltage",
-            "voltage"
+            "voltage",
+            "tds_voltage"
         )
     )
 
@@ -1083,7 +1127,8 @@ class ESP32SensorData(BaseModel):
         default=0.0,
         validation_alias=AliasChoices(
             "Milk_Conductivity",
-            "conductivity"
+            "conductivity",
+            "milk_conductivity"
         )
     )
 
@@ -1285,17 +1330,18 @@ def supabase_headers():
 
 class FarmerSyncData(BaseModel):
 
-    # Current Supabase Auth user ID
     user_id: Optional[str] = None
 
-    # Current frontend fields
     email: Optional[str] = None
+
     mobile: Optional[str] = None
+
     name: Optional[str] = None
+
     farm_address: Optional[str] = None
 
-    # Backward-compatible fields
     identifier: Optional[str] = None
+
     farm_name: Optional[str] = None
 
 
@@ -1318,21 +1364,12 @@ async def ensure_supabase_farmer(
                 "SUPABASE_URL is not configured."
         )
 
-
-    # --------------------------------------------------------
-    # GET USER ID
-    # --------------------------------------------------------
-
     user_id = data.user_id
 
-    # Backward compatibility:
-    # If an older frontend sends identifier instead
-    # of user_id, use identifier as the user ID.
     if not user_id and data.identifier:
 
         user_id = data.identifier
 
-    # A farmer must have an identifier.
     if not user_id:
 
         raise HTTPException(
@@ -1341,15 +1378,9 @@ async def ensure_supabase_farmer(
                 "Supabase farmer user_id is required."
         )
 
-
     try:
 
         headers = supabase_headers()
-
-
-        # ----------------------------------------------------
-        # CHECK EXISTING FARMER
-        # ----------------------------------------------------
 
         check_url = (
             f"{SUPABASE_URL}"
@@ -1375,7 +1406,6 @@ async def ensure_supabase_farmer(
                 params=params
             )
 
-
         if response.status_code >= 400:
 
             print(
@@ -1391,13 +1421,7 @@ async def ensure_supabase_farmer(
                 detail=response.text
             )
 
-
         existing = response.json()
-
-
-        # ----------------------------------------------------
-        # EXISTING FARMER
-        # ----------------------------------------------------
 
         if existing:
 
@@ -1416,11 +1440,6 @@ async def ensure_supabase_farmer(
                 "farmer":
                     existing_farmer
             }
-
-
-        # ----------------------------------------------------
-        # CREATE FARMER
-        # ----------------------------------------------------
 
         farmer_data = {
 
@@ -1442,15 +1461,12 @@ async def ensure_supabase_farmer(
                 else data.farm_address
         }
 
-
-        # Remove None values
         farmer_data = {
             key: value
             for key, value
             in farmer_data.items()
             if value is not None
         }
-
 
         async with httpx.AsyncClient(
             timeout=20
@@ -1461,7 +1477,6 @@ async def ensure_supabase_farmer(
                 headers=headers,
                 json=farmer_data
             )
-
 
         if response.status_code >= 400:
 
@@ -1478,13 +1493,7 @@ async def ensure_supabase_farmer(
                 detail=response.text
             )
 
-
         created = response.json()
-
-
-        # ----------------------------------------------------
-        # NEW FARMER RESPONSE
-        # ----------------------------------------------------
 
         created_farmer = (
             created[0]
@@ -1492,7 +1501,6 @@ async def ensure_supabase_farmer(
             and created
             else created
         )
-
 
         return {
 
@@ -1508,11 +1516,9 @@ async def ensure_supabase_farmer(
                 created_farmer
         }
 
-
     except HTTPException:
 
         raise
-
 
     except Exception as e:
 
@@ -1742,11 +1748,29 @@ class SensorPredictionData(BaseModel):
 
     cattle_id: Optional[int] = None
 
-    Milk_Temperature: float
+    Milk_Temperature: float = Field(
+        validation_alias=AliasChoices(
+            "Milk_Temperature",
+            "milk_temperature",
+            "temperature"
+        )
+    )
 
-    Milk_Conductivity: float
+    Milk_Conductivity: float = Field(
+        validation_alias=AliasChoices(
+            "Milk_Conductivity",
+            "milk_conductivity",
+            "conductivity"
+        )
+    )
 
-    Milk_Yield: float
+    Milk_Yield: float = Field(
+        validation_alias=AliasChoices(
+            "Milk_Yield",
+            "milk_yield",
+            "yield"
+        )
+    )
 
     prediction: Optional[int] = None
 

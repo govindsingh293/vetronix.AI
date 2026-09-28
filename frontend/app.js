@@ -1244,10 +1244,10 @@ function recalculateConductivity(ppmVal) {
   const condInput = document.getElementById('m1Conductivity');
   const ppm = parseFloat(ppmVal);
 
-  if (isNaN(ppm) || ppm <= 0) {
-    condInput.value = '';
-    return;
-  }
+  if (isNaN(ppm) || ppm < 0) {
+  condInput.value = '';
+  return;
+}
 
   // Formula: Milk Conductivity (mS/cm) = TDS (ppm) ÷ 500
   const conductivity = ppm / 500;
@@ -1288,10 +1288,20 @@ async function fetchLiveESP32Sensors(silent = false) {
       throw new Error(data.detail || data.message || "Unable to read sensor data.");
     }
 
-    const temp = Number(data.Milk_Temperature);
-    const ppm = Number(data.TDS_PPM);
-    const voltage = Number(data.TDS_Voltage ?? 0);
-    const conductivity = ppm / 500;
+    const sensorData =
+  (data.data && typeof data.data === 'object')
+    ? data.data
+    : data;
+
+const temp = Number(sensorData.Milk_Temperature);
+const ppm = Number(sensorData.TDS_PPM);
+const voltage = Number(sensorData.TDS_Voltage ?? 0);
+
+let conductivity = Number(sensorData.Milk_Conductivity);
+
+if (!Number.isFinite(conductivity)) {
+  conductivity = Number.isFinite(ppm) ? ppm / 500 : 0;
+}
 
     if (!Number.isFinite(temp) || !Number.isFinite(ppm)) {
       throw new Error("ESP32 returned invalid temperature/TDS values.");
@@ -1323,10 +1333,12 @@ recalculateConductivity(
     const milkYield = Number(yieldField?.value);
 
     const backendPayload = {
-      Milk_Temperature: temp,
-      Milk_Conductivity: conductivity,
-      Milk_Yield: Number.isFinite(milkYield) ? milkYield : 0
-    };
+  Milk_Temperature: temp,
+  TDS_PPM: ppm,
+  TDS_Voltage: voltage,
+  Milk_Conductivity: conductivity,
+  Milk_Yield: Number.isFinite(milkYield) ? milkYield : 0
+};
 
     const backendResponse = await fetch(`${API_URL}/api/sensor-data`, {
       method: 'POST',
@@ -1437,18 +1449,18 @@ async function runModel1Prediction(event) {
   }
 
   try {
-    const response = await fetch(`${API_URL}/api/predict`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        Milk_Temperature: temp,
-        Milk_Conductivity: conductivity,
-        Milk_Yield: yieldLiters
-      })
-    });
+    const predictionParams = new URLSearchParams({
+  Milk_Temperature: String(temp),
+  Milk_Conductivity: String(conductivity),
+  Milk_Yield: String(yieldLiters)
+});
 
+const response = await fetch(
+  `${API_URL}/api/predict?${predictionParams.toString()}`,
+  {
+    method: 'POST'
+  }
+);
     const data = await response.json();
 
     if (!response.ok) {
