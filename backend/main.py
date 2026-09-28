@@ -458,9 +458,11 @@ async def startup_event():
     )
 
     print("=" * 60)
+
     print(
         "VETRONIX BACKEND READY"
     )
+
     print("=" * 60)
 
 
@@ -472,6 +474,7 @@ async def startup_event():
 async def root():
 
     return {
+
         "success": True,
 
         "message":
@@ -1294,6 +1297,7 @@ async def ensure_supabase_farmer(
                 "SUPABASE_URL is not configured."
         )
 
+
     # --------------------------------------------------------
     # GET USER ID
     # --------------------------------------------------------
@@ -1316,9 +1320,11 @@ async def ensure_supabase_farmer(
                 "Supabase farmer user_id is required."
         )
 
+
     try:
 
         headers = supabase_headers()
+
 
         # ----------------------------------------------------
         # CHECK EXISTING FARMER
@@ -1348,6 +1354,7 @@ async def ensure_supabase_farmer(
                 params=params
             )
 
+
         if response.status_code >= 400:
 
             print(
@@ -1363,9 +1370,17 @@ async def ensure_supabase_farmer(
                 detail=response.text
             )
 
+
         existing = response.json()
 
+
+        # ----------------------------------------------------
+        # EXISTING FARMER
+        # ----------------------------------------------------
+
         if existing:
+
+            existing_farmer = existing[0]
 
             return {
 
@@ -1374,8 +1389,11 @@ async def ensure_supabase_farmer(
                 "message":
                     "Farmer already exists.",
 
+                "farmer_id":
+                    existing_farmer.get("id"),
+
                 "farmer":
-                    existing[0]
+                    existing_farmer
             }
 
 
@@ -1397,9 +1415,12 @@ async def ensure_supabase_farmer(
             "name":
                 data.name,
 
-            "farm_address":
-                data.farm_address
+            "farm_name":
+                data.farm_name
+                if data.farm_name is not None
+                else data.farm_address
         }
+
 
         # Remove None values
         farmer_data = {
@@ -1408,6 +1429,7 @@ async def ensure_supabase_farmer(
             in farmer_data.items()
             if value is not None
         }
+
 
         async with httpx.AsyncClient(
             timeout=20
@@ -1418,6 +1440,7 @@ async def ensure_supabase_farmer(
                 headers=headers,
                 json=farmer_data
             )
+
 
         if response.status_code >= 400:
 
@@ -1434,7 +1457,21 @@ async def ensure_supabase_farmer(
                 detail=response.text
             )
 
+
         created = response.json()
+
+
+        # ----------------------------------------------------
+        # NEW FARMER RESPONSE
+        # ----------------------------------------------------
+
+        created_farmer = (
+            created[0]
+            if isinstance(created, list)
+            and created
+            else created
+        )
+
 
         return {
 
@@ -1443,19 +1480,18 @@ async def ensure_supabase_farmer(
             "message":
                 "Farmer account linked successfully.",
 
+            "farmer_id":
+                created_farmer.get("id"),
+
             "farmer":
-                created[0]
-                if isinstance(
-                    created,
-                    list
-                )
-                and created
-                else created
+                created_farmer
         }
+
 
     except HTTPException:
 
         raise
+
 
     except Exception as e:
 
