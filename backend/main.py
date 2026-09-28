@@ -133,7 +133,7 @@ SUPABASE_URL = os.getenv(
 
 SUPABASE_SERVICE_KEY = os.getenv(
     "SUPABASE_SERVICE_KEY",
-    "" 
+    ""
 )
 
 
@@ -162,9 +162,135 @@ def load_sensor_model():
                 f"{SENSOR_MODEL_PATH}"
             )
 
-        sensor_model = joblib.load(
+        loaded_model = joblib.load(
             SENSOR_MODEL_PATH
         )
+
+        print(
+            "Loaded sensor model object type:",
+            type(loaded_model)
+        )
+
+        # ----------------------------------------------------
+        # CASE 1:
+        # The PKL directly contains the trained model
+        # ----------------------------------------------------
+
+        if hasattr(
+            loaded_model,
+            "predict_proba"
+        ):
+
+            sensor_model = loaded_model
+
+        # ----------------------------------------------------
+        # CASE 2:
+        # The PKL contains a dictionary
+        # ----------------------------------------------------
+
+        elif isinstance(
+            loaded_model,
+            dict
+        ):
+
+            print(
+                "Sensor PKL contains a dictionary."
+            )
+
+            print(
+                "Available dictionary keys:",
+                list(loaded_model.keys())
+            )
+
+            possible_keys = [
+                "model",
+                "classifier",
+                "estimator",
+                "pipeline",
+                "best_model",
+                "trained_model",
+                "sensor_model"
+            ]
+
+            extracted_model = None
+
+            # First check common keys.
+            for key in possible_keys:
+
+                candidate = loaded_model.get(
+                    key
+                )
+
+                if candidate is not None and hasattr(
+                    candidate,
+                    "predict_proba"
+                ):
+
+                    extracted_model = candidate
+
+                    print(
+                        "Sensor model extracted from key:",
+                        key
+                    )
+
+                    break
+
+            # If not found in common keys,
+            # search every dictionary value.
+            if extracted_model is None:
+
+                for key, candidate in loaded_model.items():
+
+                    if hasattr(
+                        candidate,
+                        "predict_proba"
+                    ):
+
+                        extracted_model = candidate
+
+                        print(
+                            "Sensor model automatically "
+                            "found in dictionary key:",
+                            key
+                        )
+
+                        break
+
+            if extracted_model is None:
+
+                raise ValueError(
+                    "The sensor PKL contains a dictionary, "
+                    "but no object with predict_proba() "
+                    "could be found."
+                )
+
+            sensor_model = extracted_model
+
+        # ----------------------------------------------------
+        # Unsupported format
+        # ----------------------------------------------------
+
+        else:
+
+            raise ValueError(
+                "Unsupported sensor model format. "
+                "The PKL is neither a prediction model "
+                "nor a dictionary containing one."
+            )
+
+        # ----------------------------------------------------
+        # Verify the extracted model
+        # ----------------------------------------------------
+
+        if not hasattr(
+            sensor_model,
+            "predict_proba"
+        ):
+
+            raise ValueError(
+                "Loaded sensor model does not support "
+                "predict_proba()."
+            )
 
         sensor_model_error = None
 
@@ -172,6 +298,23 @@ def load_sensor_model():
         print(
             "SENSOR MODEL LOADED SUCCESSFULLY"
         )
+        print("=" * 60)
+
+        print(
+            "Actual sensor model type:",
+            type(sensor_model)
+        )
+
+        if hasattr(
+            sensor_model,
+            "n_features_in_"
+        ):
+
+            print(
+                "Expected sensor features:",
+                sensor_model.n_features_in_
+            )
+
         print("=" * 60)
 
         return sensor_model
@@ -605,6 +748,32 @@ async def predict_sensor(
             dtype=float
         )
 
+        # ----------------------------------------------------
+        # Verify feature count when available
+        # ----------------------------------------------------
+
+        if hasattr(
+            model,
+            "n_features_in_"
+        ):
+
+            expected_features = int(
+                model.n_features_in_
+            )
+
+            actual_features = (
+                sensor_input.shape[1]
+            )
+
+            if expected_features != actual_features:
+
+                raise ValueError(
+                    f"Sensor model expects "
+                    f"{expected_features} features, "
+                    f"but VETRONIX sent "
+                    f"{actual_features} features."
+                )
+
         probabilities = (
             model.predict_proba(
                 sensor_input
@@ -614,7 +783,8 @@ async def predict_sensor(
         if len(probabilities) < 2:
 
             raise ValueError(
-                "Sensor model did not return two class probabilities."
+                "Sensor model did not return "
+                "two class probabilities."
             )
 
         probability = float(
@@ -664,6 +834,10 @@ async def predict_sensor(
                     data.Milk_Yield
             }
         }
+
+    except HTTPException:
+
+        raise
 
     except Exception as e:
 
@@ -901,11 +1075,40 @@ async def predict_combined(
             dtype=float
         )
 
+        if hasattr(
+            model,
+            "n_features_in_"
+        ):
+
+            expected_features = int(
+                model.n_features_in_
+            )
+
+            actual_features = (
+                sensor_input.shape[1]
+            )
+
+            if expected_features != actual_features:
+
+                raise ValueError(
+                    f"Sensor model expects "
+                    f"{expected_features} features, "
+                    f"but VETRONIX sent "
+                    f"{actual_features} features."
+                )
+
         sensor_probabilities = (
             model.predict_proba(
                 sensor_input
             )[0]
         )
+
+        if len(sensor_probabilities) < 2:
+
+            raise ValueError(
+                "Sensor model did not return "
+                "two class probabilities."
+            )
 
         sensor_probability = float(
             sensor_probabilities[1]
@@ -1078,6 +1281,10 @@ async def predict_combined(
                     data.Milk_Yield
             }
         }
+
+    except HTTPException:
+
+        raise
 
     except Exception as e:
 
