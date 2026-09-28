@@ -1449,16 +1449,18 @@ async function runModel1Prediction(event) {
   }
 
   try {
-    const predictionParams = new URLSearchParams({
-  Milk_Temperature: String(temp),
-  Milk_Conductivity: String(conductivity),
-  Milk_Yield: String(yieldLiters)
-});
-
-const response = await fetch(
-  `${API_URL}/api/predict?${predictionParams.toString()}`,
+    const response = await fetch(
+  `${API_URL}/api/predict`,
   {
-    method: 'POST'
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      Milk_Temperature: Number(temp),
+      Milk_Conductivity: Number(conductivity),
+      Milk_Yield: Number(yieldLiters)
+    })
   }
 );
     const data = await response.json();
