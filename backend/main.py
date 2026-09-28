@@ -473,6 +473,7 @@ async def root():
 
     return {
         "success": True,
+
         "message":
             "VETRONIX Smart Dairy Health Assistant API is running.",
 
@@ -486,6 +487,7 @@ async def root():
             "cpu",
 
         "endpoints": {
+
             "sensor_prediction":
                 "/api/predict",
 
@@ -521,6 +523,7 @@ async def root():
 async def health_check():
 
     return {
+
         "success": True,
 
         "status":
@@ -604,6 +607,7 @@ async def predict_sensor(
             result = "Healthy"
 
         return {
+
             "success": True,
 
             "prediction":
@@ -625,6 +629,7 @@ async def predict_sensor(
                 ),
 
             "input": {
+
                 "Milk_Temperature":
                     Milk_Temperature,
 
@@ -753,6 +758,7 @@ async def predict_image(
             )
 
         return {
+
             "success": True,
 
             "prediction":
@@ -1255,15 +1261,18 @@ def supabase_headers():
 
 class FarmerSyncData(BaseModel):
 
-    user_id: str
+    # Current Supabase Auth user ID
+    user_id: Optional[str] = None
 
+    # Current frontend fields
     email: Optional[str] = None
-
     mobile: Optional[str] = None
-
     name: Optional[str] = None
-
     farm_address: Optional[str] = None
+
+    # Backward-compatible fields
+    identifier: Optional[str] = None
+    farm_name: Optional[str] = None
 
 
 # ============================================================
@@ -1285,6 +1294,28 @@ async def ensure_supabase_farmer(
                 "SUPABASE_URL is not configured."
         )
 
+    # --------------------------------------------------------
+    # GET USER ID
+    # --------------------------------------------------------
+
+    user_id = data.user_id
+
+    # Backward compatibility:
+    # If an older frontend sends identifier instead
+    # of user_id, use identifier as the user ID.
+    if not user_id and data.identifier:
+
+        user_id = data.identifier
+
+    # A farmer must have an identifier.
+    if not user_id:
+
+        raise HTTPException(
+            status_code=422,
+            detail=
+                "Supabase farmer user_id is required."
+        )
+
     try:
 
         headers = supabase_headers()
@@ -1299,8 +1330,9 @@ async def ensure_supabase_farmer(
         )
 
         params = {
+
             "user_id":
-                f"eq.{data.user_id}",
+                f"eq.{user_id}",
 
             "select":
                 "*"
@@ -1354,7 +1386,7 @@ async def ensure_supabase_farmer(
         farmer_data = {
 
             "user_id":
-                data.user_id,
+                user_id,
 
             "email":
                 data.email,
